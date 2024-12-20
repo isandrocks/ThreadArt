@@ -5,28 +5,70 @@ from PIL import Image, ImageDraw, ImageOps
 import numpy as np
 import time
 import svgwrite
+import tkinter as tk
+from tkinter import filedialog
 
-MAX_LINES = 8000
+# Create a Tkinter root window (it will not be shown)
+root = tk.Tk()
+root.withdraw()
+
+# Open a file dialog to select the file
+file_path = filedialog.askopenfilename(
+    title="Select an image file",
+    filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")]
+)
+
+SET_LINES = 0
+
 N_PINS = 36 * 8
+if SET_LINES != 0:
+  MAX_LINES = SET_LINES
+else:
+  MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2)*2)
 MIN_LOOP = 1
 MIN_DISTANCE = 35
-LINE_WEIGHT = 16
-FILENAME = "00010-1925372175.png"
-SCALE = 25
-HOOP_DIAMETER = 0.625     # To calculate total thread length
+LINE_WEIGHT = 5
+FILENAME = file_path
+SCALE = 15
+
+print("max lines: %d" % MAX_LINES)
 
 tic = time.perf_counter()
 
-img = Image.open(FILENAME).convert('L')
+image = Image.open(FILENAME)
+
+# Get the dimensions of the image
+width, height = image.size
+
+# Calculate the new dimensions while maintaining aspect ratio
+if width > 512 or height > 512:
+  if width < height:
+    new_width = 512
+    new_height = int(height * (512 / width))
+  else:
+    new_width = int(width * (512 / height))
+    new_height = 512
+else:
+  new_width = width
+  new_height = height
+
+resized_image = image.resize((new_width, new_height))
+
+if resized_image.size[0] != resized_image.size[1]:
+  new_image = resized_image.crop((new_width // 2 - 256, new_height // 2 - 256, new_width // 2 + 256, new_height // 2 + 256))
+else:
+  new_image = resized_image
+  
+basename = os.path.splitext(os.path.basename(FILENAME))[0] + '.png'
+new_image.save(os.path.join(os.path.dirname(FILENAME), 'resize-' + basename))
+
+img = new_image.convert('L')
 img = ImageOps.grayscale(img)
 img = np.array(img)
 
 # Didn't bother to make it work for non-square images
 assert img.shape[0] == img.shape[1]
 length = img.shape[0]
-
-def disp(image):
-  image.show()
 
 # Cut away everything around a central circle
 X, Y = np.ogrid[0:length, 0:length]
@@ -40,12 +82,16 @@ radius = length / 2 - 1/2
 # Precalculate the coordinates of every pin
 for i in range(N_PINS):
   angle = 2 * math.pi * i / N_PINS
-  pin_coords.append((math.floor(center + radius * math.cos(angle)),
-             math.floor(center + radius * math.sin(angle))))
+  pin_coords.append(
+    (
+      math.floor(center + radius * math.cos(angle)),
+      math.floor(center + radius * math.sin(angle))
+    )
+  )
 
 line_cache_y = [None] * N_PINS * N_PINS
 line_cache_x = [None] * N_PINS * N_PINS
-line_cache_weight = [1] * N_PINS * N_PINS # Turned out to be unnecessary, unused
+line_cache_weight = [1] * N_PINS * N_PINS 
 line_cache_length = [0] * N_PINS * N_PINS
 
 print("Precalculating all lines... ", end='', flush=True)
@@ -85,19 +131,19 @@ line_sequence = []
 pin = 0
 line_sequence.append(pin)
 
-thread_length = 0
-
 last_pins = collections.deque(maxlen = MIN_LOOP)
 
 # Initialize SVG drawing
 svg_filename = os.path.splitext(FILENAME)[0] + "-out.svg"
-dwg = svgwrite.Drawing(svg_filename, size=(length, length))
-dwg.add(dwg.rect(insert=(0, 0), size=(length, length), fill="white"))
+dwg = svgwrite.Drawing(svg_filename, size=(img.shape[0] * SCALE, img.shape[1] * SCALE))
+dwg.add(dwg.rect(insert=(0, 0), size=(img.shape[0] * SCALE, img.shape[1] * SCALE), fill="white"))
 
 path = dwg.path(d="M {} {}".format(*pin_coords[0]), stroke="black", fill="none", stroke_width="0.15px")
 
-for l in range(MAX_LINES):
+increase_count = 0
+previous_absdiff = float('inf')
 
+for l in range(MAX_LINES):
   if l % 100 == 0:
     print("%d " % l, end='', flush=True)
 
@@ -107,7 +153,20 @@ for l in range(MAX_LINES):
     diff = img_result - img
     mul = np.uint8(img_result < img) * 254 + 1
     absdiff = diff * mul
-    print(absdiff.sum() / (length * length))
+    current_absdiff = absdiff.sum() / (length * length)
+    print(current_absdiff)
+
+    if l > 2000:
+      if current_absdiff > previous_absdiff:
+        increase_count += 1
+      else:
+        increase_count = 0
+
+      if increase_count >= 3:
+        print("Breaking early due to increase in diffrence 3 times in a row.")
+        break
+
+    previous_absdiff = current_absdiff
 
   max_err = -math.inf
   best_pin = -1
@@ -132,7 +191,7 @@ for l in range(MAX_LINES):
   ys = line_cache_y[best_pin * N_PINS + pin]
   weight = LINE_WEIGHT * line_cache_weight[best_pin*N_PINS + pin]
   
-      # Add the line to the SVG path
+  # Add the line to the SVG path
   path.push("L {} {}".format(*pin_coords[best_pin]))
 
   line_mask.fill(0)
@@ -143,7 +202,7 @@ for l in range(MAX_LINES):
   draw.line(
     [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
      (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)],
-    fill=0, width=4)
+    fill=0, width=1)
 
   x0 = pin_coords[pin][0]
   y0 = pin_coords[pin][1]
@@ -152,7 +211,6 @@ for l in range(MAX_LINES):
   y1 = pin_coords[best_pin][1]
 
   dist = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0)*(y1 - y0))
-  thread_length += HOOP_DIAMETER / length * dist
 
   last_pins.append(best_pin)
   pin = best_pin
@@ -173,7 +231,11 @@ print('\x07')
 toc = time.perf_counter()
 print("%.1f seconds" % (toc - tic))
 
-result.save(os.path.splitext(FILENAME)[0] + "-out.png")
+result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
+
+result.shape = (length, length)
+
+result_1024.save(os.path.splitext(FILENAME)[0] + "-out.png")
 
 with open(os.path.splitext(FILENAME)[0] + ".json", "w") as f:
   f.write(str(line_sequence))
