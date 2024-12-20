@@ -214,7 +214,7 @@ def main():
     MIN_DISTANCE = 35  # Minimum distance between pins 
     LINE_WEIGHT = 15  # Line weight (thickness) more = darker
     FILENAME = file_path  # File path of the image
-    SCALE = 6  # Scale factor it wll revert back to 1024 x 1024 once it is done 
+    SCALE = 6  # Scale factor it wll revert back to 1024 x 1024 once it is done
     SHARP = .8  # Sharpness enhancement factor
     BRIGHT = 0.8  # Brightness enhancement factor
     CONTRAST = 1  # Contrast enhancement factor

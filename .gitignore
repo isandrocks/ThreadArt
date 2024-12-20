@@ -1,3 +1,5 @@
 /test img's/*
 /__pycache__
 /.venv
+/output
+gifsicle.exe

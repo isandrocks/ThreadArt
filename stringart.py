@@ -8,6 +8,9 @@ import svgwrite
 import tkinter as tk
 from tkinter import filedialog
 
+output_dir = os.path.join(os.path.dirname(__file__), 'output')
+os.makedirs(output_dir, exist_ok=True)
+
 # Create a Tkinter root window (it will not be shown)
 root = tk.Tk()
 root.withdraw()
@@ -26,8 +29,8 @@ if SET_LINES != 0:
 else:
   MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2)*2)
 MIN_LOOP = 1
-MIN_DISTANCE = 35
-LINE_WEIGHT = 5
+MIN_DISTANCE = 2
+LINE_WEIGHT = 13
 FILENAME = file_path
 SCALE = 15
 
@@ -60,7 +63,6 @@ else:
   new_image = resized_image
   
 basename = os.path.splitext(os.path.basename(FILENAME))[0] + '.png'
-new_image.save(os.path.join(os.path.dirname(FILENAME), 'resize-' + basename))
 
 img = new_image.convert('L')
 img = ImageOps.grayscale(img)
@@ -134,7 +136,7 @@ line_sequence.append(pin)
 last_pins = collections.deque(maxlen = MIN_LOOP)
 
 # Initialize SVG drawing
-svg_filename = os.path.splitext(FILENAME)[0] + "-out.svg"
+svg_filename = os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.svg")
 dwg = svgwrite.Drawing(svg_filename, size=(img.shape[0] * SCALE, img.shape[1] * SCALE))
 dwg.add(dwg.rect(insert=(0, 0), size=(img.shape[0] * SCALE, img.shape[1] * SCALE), fill="white"))
 
@@ -142,31 +144,38 @@ path = dwg.path(d="M {} {}".format(*pin_coords[0]), stroke="black", fill="none",
 
 increase_count = 0
 previous_absdiff = float('inf')
+line_number = 0     
 
+# Main thread path calculation loop
 for l in range(MAX_LINES):
+  line_number += 1 
   if l % 100 == 0:
-    print("%d " % l, end='', flush=True)
+      print("%d " % l, end='', flush=True)
 
-    img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
-    img_result = np.array(img_result)
+      img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
+      img_result = np.array(img_result)
 
-    diff = img_result - img
-    mul = np.uint8(img_result < img) * 254 + 1
-    absdiff = diff * mul
-    current_absdiff = absdiff.sum() / (length * length)
-    print(current_absdiff)
+      diff = img_result - img
+      mul = np.uint8(img_result < img) * 254 + 1
+      absdiff = diff * mul
+      current_absdiff = absdiff.sum() / (length * length)
+  
+      max_possible_absdiff = 255
+      percentage_diff = (current_absdiff / max_possible_absdiff) * 100
+      print(f"{percentage_diff:.2f}%")
 
-    if l > 2000:
-      if current_absdiff > previous_absdiff:
-        increase_count += 1
-      else:
-        increase_count = 0
+      if l > 2000:
+          improvement = previous_absdiff - current_absdiff
+          if improvement < 1e-3:  # Define a small threshold for improvement
+              increase_count += 1
+          else:
+              increase_count = 0
 
-      if increase_count >= 3:
-        print("Breaking early due to increase in diffrence 3 times in a row.")
-        break
+          if increase_count >= 3:
+              print("Breaking early due to stagnation.")
+              break
 
-    previous_absdiff = current_absdiff
+          previous_absdiff = current_absdiff
 
   max_err = -math.inf
   best_pin = -1
@@ -224,8 +233,13 @@ img_result = np.array(img_result)
 diff = img_result - img
 mul = np.uint8(img_result < img) * 254 + 1
 absdiff = diff * mul
+absdiff = absdiff.sum() / (length * length)
 
-print(absdiff.sum() / (length * length))
+max_possible_absdiff = 255  # Maximum possible per-pixel difference
+percentage_diff = (current_absdiff / max_possible_absdiff) * 100
+
+# Print the percentage difference
+print(f"{percentage_diff:.2f}%")
 
 print('\x07')
 toc = time.perf_counter()
@@ -235,7 +249,7 @@ result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
 
 result.shape = (length, length)
 
-result_1024.save(os.path.splitext(FILENAME)[0] + "-out.png")
+result_1024.save(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + f"_LW_{LINE_WEIGHT}_LT_{line_number}".replace('.', '_') + ".png"))
 
-with open(os.path.splitext(FILENAME)[0] + ".json", "w") as f:
+with open(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + ".json"), "w") as f:
   f.write(str(line_sequence))
