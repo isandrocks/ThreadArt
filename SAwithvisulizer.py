@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import filedialog
 import gc 
 from pygifsicle import optimize
+from moviepy import ImageSequenceClip
 
 output_dir = os.path.join(os.path.dirname(__file__), 'output')
 os.makedirs(output_dir, exist_ok=True)
@@ -31,7 +32,7 @@ if SET_LINES != 0:
 else:
     MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2) / 2)
 MIN_LOOP = 1
-MIN_DISTANCE = 35
+MIN_DISTANCE = 2
 LINE_WEIGHT = 18
 FILENAME = file_path
 SCALE = 5
@@ -272,7 +273,7 @@ tic = 0
 gc.collect()
 
 
-print("resizing gif...")
+print("resizing frames...")
 
 
 optimized_frames_a = []
@@ -283,11 +284,9 @@ for frame in frames:
 frames = optimized_frames_a
 
 
-frames[0].save(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.gif"), save_all=True, append_images=frames[1:], duration=25, loop=1, optimize=True, tranparency=0)
-print("Done")
 
-optimize(
-    f"{os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.gif")}",
-    f"{os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.gif")}",
-    options=["--lossy=80"]
-    )
+frames_rgb = [frame.convert("RGB") for frame in frames]
+print("Done")
+# Save the frames as an MP4 video
+clip = ImageSequenceClip([np.array(frame) for frame in frames_rgb], fps=(line_number / 30))  # Adjust fps as needed
+clip.write_videofile(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.mp4"), codec='libx264')

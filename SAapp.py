@@ -9,7 +9,7 @@ import svgwrite
 import tkinter as tk
 from tkinter import filedialog
 
-def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
+def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR):
     assert img.shape[0] == img.shape[1]
     length = img.shape[0]
 
@@ -98,7 +98,6 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
     error = np.ones(img.shape) * 0xFF - img.copy()
 
     img_result = np.ones(img.shape) * 0xFF
-    lse_buffer = np.ones(img.shape) * 0xFF    # Used in the unused LSE algorithm
 
     result = Image.new('L', (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
     draw = ImageDraw.Draw(result)
@@ -190,7 +189,7 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
         draw.line(
         [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
          (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)],
-        fill=0, width=1)
+        fill=f"{LINE_COLOR}", width=1)
 
         last_pins.append(best_pin)
         pin = best_pin
@@ -210,14 +209,15 @@ def main():
     SET_LINES = 0
 
     N_PINS = 36 * 8  # Number of pins
-    MIN_LOOP = 5  # Minimum loop before it returns to the same pin
-    MIN_DISTANCE = 35  # Minimum distance between pins 
-    LINE_WEIGHT = 15  # Line weight (thickness) more = darker
+    MIN_LOOP = 1  # Minimum loop before it returns to the same pin
+    MIN_DISTANCE = 3 # Minimum distance between pins 
+    LINE_WEIGHT = 18  # Line weight (thickness) more = darker
     FILENAME = file_path  # File path of the image
     SCALE = 6  # Scale factor it wll revert back to 1024 x 1024 once it is done
     SHARP = .8  # Sharpness enhancement factor
     BRIGHT = 0.8  # Brightness enhancement factor
     CONTRAST = 1  # Contrast enhancement factor
+    LINE_COLOR = "black"  # Line color  
     
     if SET_LINES != 0:
         MAX_LINES = SET_LINES
@@ -285,7 +285,7 @@ def main():
     average_luminance = img.mean() / 255.0 * 2.0
     print(f"Average luminance: {average_luminance}")
 
-    length, result, line_number, current_absdiff = new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
+    length, result, line_number, current_absdiff = new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR) 
 
     img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
     img_result = np.array(img_result)

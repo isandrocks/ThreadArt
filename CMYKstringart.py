@@ -29,9 +29,10 @@ else:
     MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2))
 MIN_LOOP = 5
 MIN_DISTANCE = 35
-LINE_WEIGHT = 8
+LINE_WEIGHT = 18
 FILENAME = file_path
-SCALE = 18
+SCALE = 5
+LINE_COLOR='black'
 img = Image.open(FILENAME)
 
 # Get the dimensions of the image
@@ -60,7 +61,7 @@ else:
 img = new_image
 if img.mode == "RGBA":
   img = img.convert("RGB")
-img = ImageOps.invert(img)
+# img = ImageOps.invert(img)
 
 def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
     # Convert image to CMYK
@@ -74,9 +75,9 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
 
     # Process each channel
     for channel_idx, channel_img in enumerate(cmyk_channels):
-        print(f"Processing channel {['Cyan', 'Magenta', 'Yellow', 'Black'][channel_idx]}...")
+        print(f"Processing channel {['Cyan', 'Magenta', 'Yellow', 'Black'][channel_idx]}...")        
         length, result, line_number, current_absdiff = new_func(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img, LINE_COLOR
         )
         results.append(result)
         lengths.append(line_number)
@@ -94,6 +95,6 @@ print('\x07')
 
 result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
 result_1024 = result_1024.convert("RGB")
-result_1024 = ImageOps.invert(result_1024)
+# result_1024 = ImageOps.invert(result_1024)
 
-result_1024.save(os.path.splitext(FILENAME)[0] + f"_LW_{LINE_WEIGHT}".replace('.', '_') + ".png")
+result_1024.save(os.path.splitext(FILENAME)[0] + f"_LW_{LINE_WEIGHT}_{length}".replace('.', '_') + ".png")
