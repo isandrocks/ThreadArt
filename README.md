@@ -4,7 +4,9 @@ This project is a Python-based application for performing various image manipula
 
 ## Features
 
-- corp's a img and makes a string art repesentation 
+- Creates a string art representation of an image.
+- Can produce outputs in .PNG, .MP4, .SVG formats, and a JSON file with instructions on which pin to run the thread next.
+- Pin 0 is at the rightmost point and moves up counterclockwise.
 
 ## Installation
 
