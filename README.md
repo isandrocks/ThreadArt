@@ -2,6 +2,12 @@
 
 This project is a Python-based application for performing various image manipulation tasks.
 
+
+
+![Demo](./demo.gif)
+
+
+
 ## Features
 
 - Creates a string art representation of an image.
