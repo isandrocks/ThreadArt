@@ -21,19 +21,22 @@ file_path = filedialog.askopenfilename(
 )
 
 SET_LINES = 0
-
 N_PINS = 36 * 8
+MIN_LOOP = 5
+MIN_DISTANCE = 35
+LINE_WEIGHT = 15
+FILENAME = file_path
+SCALE = 7
+LINE_COLOR='black'
+INVERT = True
+
+
 if SET_LINES != 0:
     MAX_LINES = SET_LINES
 else:
     MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2))
-MIN_LOOP = 5
-MIN_DISTANCE = 35
-LINE_WEIGHT = 18
-FILENAME = file_path
-SCALE = 5
-LINE_COLOR='black'
 img = Image.open(FILENAME)
+
 
 # Get the dimensions of the image
 width, height = img.size
@@ -59,9 +62,10 @@ else:
 
 
 img = new_image
-if img.mode == "RGBA":
-  img = img.convert("RGB")
-# img = ImageOps.invert(img)
+
+img = img.convert("RGB")
+if INVERT:
+  img = ImageOps.invert(img)
 
 def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
     # Convert image to CMYK
@@ -95,6 +99,7 @@ print('\x07')
 
 result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
 result_1024 = result_1024.convert("RGB")
-# result_1024 = ImageOps.invert(result_1024)
+if INVERT:
+  result_1024 = ImageOps.invert(result_1024)
 
 result_1024.save(os.path.splitext(FILENAME)[0] + f"_LW_{LINE_WEIGHT}_{length}".replace('.', '_') + ".png")

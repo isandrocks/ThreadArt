@@ -8,7 +8,6 @@ import svgwrite
 import tkinter as tk
 from tkinter import filedialog
 import gc 
-from pygifsicle import optimize
 from moviepy import ImageSequenceClip
 
 output_dir = os.path.join(os.path.dirname(__file__), 'output')
@@ -30,12 +29,12 @@ N_PINS = 36 * 8
 if SET_LINES != 0:
     MAX_LINES = SET_LINES
 else:
-    MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2) / 2)
+    MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2))
 MIN_LOOP = 1
 MIN_DISTANCE = 2
-LINE_WEIGHT = 18
+LINE_WEIGHT = 17
 FILENAME = file_path
-SCALE = 5
+SCALE = 7
 
 print("max lines: %d" % MAX_LINES)
 
@@ -184,6 +183,7 @@ for l in range(MAX_LINES):
                 break
 
             previous_absdiff = current_absdiff
+            gc.collect()
 
     max_err = -math.inf
     best_pin = -1
@@ -214,7 +214,7 @@ for l in range(MAX_LINES):
     line_mask.fill(0)
     line_mask[ys, xs] = weight
     error = error - line_mask
-    error.clip(0, 255)
+    error.clip(0, 255, out=error)
 
     frame = result.copy()
     draw_gif = ImageDraw.Draw(frame)
@@ -226,6 +226,7 @@ for l in range(MAX_LINES):
     [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
     (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)],
     fill=0, width=1)
+    frame = frame.resize((512, 512), Image.Resampling.LANCZOS)
     frames.append(frame)
 
     x0 = pin_coords[pin][0]
@@ -266,27 +267,9 @@ result_1024.save(os.path.join(output_dir, os.path.splitext(os.path.basename(FILE
 
 with open(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + ".json"), "w") as f:
   f.write(str(line_sequence))
-  
-result_1024 = 0
-toc = 0
-tic = 0
-gc.collect()
-
-
-print("resizing frames...")
-
-
-optimized_frames_a = []
-for frame in frames:
-    frame = frame.resize((512, 512), Image.Resampling.LANCZOS)
-    optimized_frames_a.append(frame)
-    
-frames = optimized_frames_a
-
-
 
 frames_rgb = [frame.convert("RGB") for frame in frames]
-print("Done")
+
 # Save the frames as an MP4 video
-clip = ImageSequenceClip([np.array(frame) for frame in frames_rgb], fps=(line_number / 30))  # Adjust fps as needed
+clip = ImageSequenceClip([np.array(frame) for frame in frames_rgb], fps=(line_number / 17))  # Adjust fps as needed
 clip.write_videofile(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + "-out.mp4"), codec='libx264')

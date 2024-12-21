@@ -3,3 +3,4 @@
 /.venv
 /output
 gifsicle.exe
+cache.pkl
