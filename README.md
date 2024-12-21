@@ -1,6 +1,6 @@
 # String Art Project
 
-This project is a Python-based application for performing various image manipulation tasks.
+This project is a Python-based application that creates a string art representation of a given image.
 
 
 
