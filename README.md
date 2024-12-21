@@ -10,11 +10,11 @@ This project is a Python-based application for performing various image manipula
 
 1. Clone the repository:
   ```sh
-  git clone https://github.com/yourusername/img-manipulation.git
+  git clone https://github.com/isandrocks/ThreadArt.git
   ```
 2. Navigate to the project directory:
   ```sh
-  cd img-manipulation
+  cd ThreadArt
   ```
 3. Install the required dependencies:
   ```sh
