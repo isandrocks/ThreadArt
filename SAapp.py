@@ -9,26 +9,26 @@ import svgwrite
 import tkinter as tk
 from tkinter import filedialog
 
-def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR):
+def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR):
     assert img.shape[0] == img.shape[1]
     length = img.shape[0]
 
-# Apply circular mask
+    # Apply circular mask
     X, Y = np.ogrid[0:length, 0:length]
     circlemask = (X - length / 2) ** 2 + (Y - length / 2) ** 2 > (length / 2) ** 2
     img[circlemask] = 0xFF
 
-# Compute the Radon Transform of the image
+    # Compute the Radon Transform of the image
     theta = np.linspace(0., 180., max(img.shape), endpoint=False)
     sinogram = radon(img, theta=theta)
 
-# Normalize the sinogram for line weighting
+    # Normalize the sinogram for line weighting
     sinogram /= sinogram.max()
 
-# Precompute the scaling factor for distance
+    # Precompute the scaling factor for distance
     distance_scale_factor = sinogram.shape[0] / (length / 2)
 
-# Calculate pin coordinates
+    # Calculate pin coordinates
     pin_coords = []
     center = length / 2
     radius = length / 2 - 0.5
@@ -42,7 +42,7 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img,
         )
     )
     
-# Helper function to map a line to Radon space
+    # Helper function to map a line to Radon space
     def line_to_radon_weight(pin1, pin2):
     # Compute angle of the line
         x0, y0 = pin1
@@ -65,7 +65,7 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img,
     # Return the corresponding Radon value
         return sinogram[distance_scaled, angle_idx]
 
-# Precompute lines between pins
+    # Precompute lines between pins
     line_cache_y = [None] * N_PINS * N_PINS
     line_cache_x = [None] * N_PINS * N_PINS
     line_cache_weight = [1] * N_PINS * N_PINS
@@ -109,19 +109,19 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img,
 
     last_pins = collections.deque(maxlen=MIN_LOOP)
 
-# Initialize SVG drawing
-# svg_filename = os.path.splitext(FILENAME)[0] + "-out.svg"
-# dwg = svgwrite.Drawing(svg_filename, size=(length, length))
-# dwg.add(dwg.rect(insert=(0, 0), size=(length, length), fill="white"))
+    # Initialize SVG drawing
+    # svg_filename = os.path.splitext(FILENAME)[0] + "-out.svg"
+    # dwg = svgwrite.Drawing(svg_filename, size=(length, length))
+    # dwg.add(dwg.rect(insert=(0, 0), size=(length, length), fill="white"))
 
-# path = dwg.path(d="M {} {}".format(*pin_coords[0]), stroke="black", fill="none", stroke_width="0.15px")
+    # path = dwg.path(d="M {} {}".format(*pin_coords[0]), stroke="black", fill="none", stroke_width="0.15px")
 
-# Initialize previous_absdiff
+    # Initialize previous_absdiff
     previous_absdiff = float('inf')
     increase_count = 0   
     line_number = 0     
 
-# Main thread path calculation loop
+    # Main thread path calculation loop
     for l in range(MAX_LINES):
         line_number += 1 
         if l % 100 == 0:
@@ -180,7 +180,7 @@ def new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img,
         ys = line_cache_y[best_pin * N_PINS + pin]
         weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
 
-    # path.push("L {} {}".format(*pin_coords[best_pin]))
+        # path.push("L {} {}".format(*pin_coords[best_pin]))
         line_mask.fill(0)
         line_mask[ys, xs] = weight
         error -= line_mask
@@ -285,15 +285,10 @@ def main():
     average_luminance = img.mean() / 255.0 * 2.0
     print(f"Average luminance: {average_luminance}")
 
-    length, result, line_number, current_absdiff = new_func(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR) 
+    length, result, line_number, current_absdiff = string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR) 
 
     img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
     img_result = np.array(img_result)
-
-    diff = img_result - img
-    mul = np.uint8(img_result < img) * 254 + 1
-    absdiff = diff * mul
-    absdiff = absdiff.sum() / (length * length)
 
     max_possible_absdiff = 255  # Maximum possible per-pixel difference
     percentage_diff = (current_absdiff / max_possible_absdiff) * 100
