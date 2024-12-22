@@ -8,6 +8,8 @@ import time
 import svgwrite
 import tkinter as tk
 from tkinter import filedialog
+import random
+
 
 def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR):
     assert img.shape[0] == img.shape[1]
@@ -17,16 +19,6 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     X, Y = np.ogrid[0:length, 0:length]
     circlemask = (X - length / 2) ** 2 + (Y - length / 2) ** 2 > (length / 2) ** 2
     img[circlemask] = 0xFF
-
-    # Compute the Radon Transform of the image
-    theta = np.linspace(0., 180., max(img.shape), endpoint=False)
-    sinogram = radon(img, theta=theta)
-
-    # Normalize the sinogram for line weighting
-    sinogram /= sinogram.max()
-
-    # Precompute the scaling factor for distance
-    distance_scale_factor = sinogram.shape[0] / (length / 2)
 
     # Calculate pin coordinates
     pin_coords = []
@@ -41,28 +33,35 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             math.floor(center + radius * math.sin(angle)),
         )
     )
+
+    error = np.ones(img.shape) * 0xFF - img.copy()
     
+    # Compute the Radon Transform of the image
+    theta = np.linspace(0., 180., max(img.shape), endpoint=False)
+    sinogram = radon(error, theta=theta)
+
+    # Normalize the sinogram for line weighting
+    sinogram /= sinogram.max()
+
+    # Precompute the scaling factor for distance
+    distance_scale_factor = sinogram.shape[0] / (length / 2)
+
     # Helper function to map a line to Radon space
     def line_to_radon_weight(pin1, pin2):
-    # Compute angle of the line
         x0, y0 = pin1
         x1, y1 = pin2
         angle = (np.arctan2(y1 - y0, x1 - x0) * 180 / np.pi) % 180
 
-    # Closest angle index in the sinogram
         angle_idx = np.argmin(np.abs(theta - angle))
 
-    # Compute distance from the center
         mid_x = (x0 + x1) / 2 - center
         mid_y = (y0 + y1) / 2 - center
         distance = np.sqrt(mid_x ** 2 + mid_y ** 2)
 
-    # Scale the distance
         distance_scaled = int(distance * distance_scale_factor)
         if not (0 <= distance_scaled < sinogram.shape[0]):
             return 0  # Default weight for out-of-bound lines
 
-    # Return the corresponding Radon value
         return sinogram[distance_scaled, angle_idx]
 
     # Precompute lines between pins
@@ -70,7 +69,6 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     line_cache_x = [None] * N_PINS * N_PINS
     line_cache_weight = [1] * N_PINS * N_PINS
     line_cache_length = [0] * N_PINS * N_PINS
-
     radon_weights = {}
 
     print("Precalculating all lines... ", end="", flush=True)
@@ -78,24 +76,25 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         for b in range(a + MIN_DISTANCE, N_PINS):
             x0, y0 = pin_coords[a]
             x1, y1 = pin_coords[b]
-        
+
             d = int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
         
             xs = np.linspace(x0, x1, d, dtype=int)
             ys = np.linspace(y0, y1, d, dtype=int)
         
+            # Store the calculated values in the cache
             line_cache_y[b * N_PINS + a] = ys
             line_cache_y[a * N_PINS + b] = ys
             line_cache_x[b * N_PINS + a] = xs
             line_cache_x[a * N_PINS + b] = xs
             line_cache_length[b * N_PINS + a] = d
             line_cache_length[a * N_PINS + b] = d
-        
+
+
             radon_weights[(a, b)] = line_to_radon_weight(pin_coords[a], pin_coords[b])
+
         
     print("done")
-
-    error = np.ones(img.shape) * 0xFF - img.copy()
 
     img_result = np.ones(img.shape) * 0xFF
 
@@ -146,7 +145,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
                 else:
                     increase_count = 0
 
-                if increase_count >= 3:
+                if increase_count >= 2:
                     print("Breaking early due to stagnation.")
                     break
 
@@ -155,22 +154,25 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         max_score = -math.inf
         best_pin = -1
 
-        for offset in range(MIN_DISTANCE, N_PINS - MIN_DISTANCE):
+        offsets = list(range(MIN_DISTANCE, N_PINS - MIN_DISTANCE))
+        random.shuffle(offsets)
+        for offset in offsets:
             test_pin = (pin + offset) % N_PINS
+
             if test_pin in last_pins:
                 continue
 
             xs = line_cache_x[test_pin * N_PINS + pin]
             ys = line_cache_y[test_pin * N_PINS + pin]
             line_len = line_cache_length[test_pin * N_PINS + pin]
-            line_err = np.sum(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin]
+            line_err = np.sum(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin] / line_len
 
             radon_weight = radon_weights.get((pin, test_pin), 1e-6)
             length_factor = 1.0 / line_len if line_len > 0 else 1.0
 
             total_score = line_err * radon_weight * length_factor
 
-            if total_score > max_score:
+            if total_score > max_score or (total_score == max_score and random.random() > 0.5):
                 max_score = total_score
                 best_pin = test_pin
 

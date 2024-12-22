@@ -17,6 +17,7 @@ SCALE = 5
 LINE_COLOR = 'black'
 INVERT = True
 FILE_PATH = ""
+GRAYSCALE = False
 
 # Create the Tkinter root window
 root = tk.Tk()
@@ -36,6 +37,7 @@ image_label = tk.Label(root)
 image_label.grid(row=11, columnspan=3, **padding_options)
 
 invert_var = tk.BooleanVar(value=INVERT)
+grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 
 output_dir = os.path.join(os.path.dirname(__file__), 'output')
 os.makedirs(output_dir, exist_ok=True)
@@ -44,7 +46,7 @@ os.makedirs(output_dir, exist_ok=True)
 result_queue = queue.Queue()
 
 def update_settings():
-    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, LINE_COLOR, INVERT, FILE_PATH
+    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, LINE_COLOR, INVERT, FILE_PATH, GRAYSCALE
     SET_LINES = int(set_lines_entry.get())
     N_PINS = int(n_pins_entry.get())
     MIN_LOOP = int(min_loop_entry.get())
@@ -53,6 +55,7 @@ def update_settings():
     SCALE = int(scale_entry.get())
     INVERT = invert_var.get()
     FILE_PATH = file_path_entry.get()
+    GRAYSCALE = grayscale_var.get()
 
 def run_code():
     update_settings()
@@ -123,47 +126,25 @@ def run_string_art():
     if INVERT:
         img = ImageOps.invert(img)
 
-    def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
-        # Convert image to CMYK
-        img_cmyk = img.convert("CMYK")
-      
-        cmyk_channels = [np.array(img_cmyk.getchannel(channel)) for channel in range(4)]
-        
-        results = []  # To store results for each channel
-        lengths = []  # To store line counts for each channel
-        diffs = []    # To store errors for each channel
+    if GRAYSCALE:
+        result, length, current_absdiff = string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
+        length = [length]  # Ensure length is a list
+    else:
+        result, length, current_absdiff = string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
 
-        # Process each channel
-        for channel_idx, channel_img in enumerate(cmyk_channels):
-            print(f"Processing channel {['Cyan', 'Magenta', 'Yellow', 'Black'][channel_idx]}...")        
-            length, result, line_number, current_absdiff = string_art(
-                N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img, LINE_COLOR
-            )
-            results.append(np.array(result))  # Ensure result is a numpy array
-            lengths.append(line_number)
-            diffs.append(current_absdiff)
-
-        # Ensure we have exactly four channels
-        if len(results) != 4:
-            raise ValueError("Expected 4 channels for CMYK image, got {}".format(len(results)))
-
-        # Merge the results into a single CMYK image
-        combined_result = Image.merge("CMYK", [Image.fromarray(channel) for channel in results])
-
-        return combined_result, lengths, diffs
-
-    result, length, current_absdiff = string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
     print(f"Total lines: {sum(length)}")
     
-    C_absdiff = percent_diff(current_absdiff[0])
-    M_absdiff = percent_diff(current_absdiff[1])
-    Y_absdiff = percent_diff(current_absdiff[2])
-    K_absdiff = percent_diff(current_absdiff[3])
+    if GRAYSCALE:
+        avg_absdiff = percent_diff(current_absdiff)
+        print(f"Average error: {avg_absdiff:.2f}%")
+    else:
+        C_absdiff = percent_diff(current_absdiff[0])
+        M_absdiff = percent_diff(current_absdiff[1])
+        Y_absdiff = percent_diff(current_absdiff[2])
+        K_absdiff = percent_diff(current_absdiff[3])
+        avg_absdiff = (C_absdiff + M_absdiff + Y_absdiff + K_absdiff) / 4
+        print(f"Average error: {avg_absdiff:.2f}%")
     
-    # Calculate the average of the CMYK differences
-    avg_absdiff = (C_absdiff + M_absdiff + Y_absdiff + K_absdiff) / 4
-
-    print(f"Average error: {avg_absdiff:.2f}%")
     print('\x07')
 
     result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
@@ -175,6 +156,48 @@ def run_string_art():
     result_1024.save(output_path)
     result_queue.put(output_path)
     print(f"Saved result to {output_path}")
+
+def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
+    # Convert image to grayscale
+    img_gray = img.convert("L")
+    gray_channel = np.array(img_gray)
+    
+    print("Processing grayscale channel...")
+    length, result, line_number, current_absdiff = string_art(
+        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel, LINE_COLOR
+    )
+    
+    result_img = Image.fromarray(np.array(result))
+    return result_img, line_number, current_absdiff
+
+def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
+    # Convert image to CMYK
+    img_cmyk = img.convert("CMYK")
+  
+    cmyk_channels = [np.array(img_cmyk.getchannel(channel)) for channel in range(4)]
+    
+    results = []  # To store results for each channel
+    lengths = []  # To store line counts for each channel
+    diffs = []    # To store errors for each channel
+
+    # Process each channel
+    for channel_idx, channel_img in enumerate(cmyk_channels):
+        print(f"Processing channel {['Cyan', 'Magenta', 'Yellow', 'Black'][channel_idx]}...")        
+        length, result, line_number, current_absdiff = string_art(
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img, LINE_COLOR
+        )
+        results.append(np.array(result))  # Ensure result is a numpy array
+        lengths.append(line_number)
+        diffs.append(current_absdiff)
+
+    # Ensure we have exactly four channels
+    if len(results) != 4:
+        raise ValueError("Expected 4 channels for CMYK image, got {}".format(len(results)))
+
+    # Merge the results into a single CMYK image
+    combined_result = Image.merge("CMYK", [Image.fromarray(channel) for channel in results])
+
+    return combined_result, lengths, diffs
 
 tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG).grid(row=0, column=0)
 set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
@@ -206,8 +229,12 @@ scale_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
 scale_entry.insert(0, SCALE)
 scale_entry.grid(row=5, column=1)
 
+tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG).grid(row=6, column=0)
+grayscale_check = tk.Checkbutton(root, variable=grayscale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+grayscale_check.grid(row=6, column=1)
+
 tk.Label(root, text="INVERT", bg=TK_BG, fg=TK_FG).grid(row=7, column=0)
-invert_check = tk.Checkbutton(root, variable=invert_var,)
+invert_check = tk.Checkbutton(root, variable=invert_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 invert_check.grid(row=7, column=1)
 
 tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG).grid(row=8, column=0, **padding_options)
