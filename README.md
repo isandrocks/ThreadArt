@@ -33,7 +33,7 @@ This project is a Python-based application that creates a string art representat
 
 1. Run the main script:
   ```sh
-  stringart.py
+  CMYKwithGUI.py
   ```
   or if you want a .mp4 video
   ```sh
