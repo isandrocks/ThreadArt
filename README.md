@@ -4,7 +4,7 @@ This project is a Python-based application that creates a string art representat
 
 
 
-![Demo](./demo.gif)
+[![Demo](./thumbnail.png)](https://www.youtube.com/watch?v=oIXXaKVdeNM)
 
 
 
