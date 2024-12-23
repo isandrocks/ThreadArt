@@ -12,14 +12,14 @@ SET_LINES = 0
 N_PINS = 36 * 8
 MIN_LOOP = 2
 MIN_DISTANCE = 3
-LINE_WEIGHT = 15
-SCALE = 5
+LINE_WEIGHT = 17
+SCALE = 7
 LINE_COLOR = 'black'
-INVERT = True
+INVERT = False
 FILE_PATH = ""
 GRAYSCALE = False
 
-# Create the Tkinter root window
+#Tkinter root window
 root = tk.Tk()
 root.title("Edit Settings")
 root.attributes("-topmost", True)
@@ -32,7 +32,7 @@ padding_options = {'padx': 10, 'pady': 5}
 
 root.configure(bg=TK_BG)
 
-# Create a Label widget to display the image
+#Label widget to display the image
 image_label = tk.Label(root)
 image_label.grid(row=11, columnspan=3, **padding_options)
 
@@ -42,17 +42,17 @@ grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 output_dir = os.path.join(os.path.dirname(__file__), 'output')
 os.makedirs(output_dir, exist_ok=True)
 
-# Create a queue to communicate between the main thread and the worker thread
+# queue to communicate between the main thread and the worker thread
 result_queue = queue.Queue()
 
 def update_settings():
     global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, LINE_COLOR, INVERT, FILE_PATH, GRAYSCALE
     SET_LINES = int(set_lines_entry.get())
     N_PINS = int(n_pins_entry.get())
-    MIN_LOOP = int(min_loop_entry.get())
-    MIN_DISTANCE = int(min_distance_entry.get())
-    LINE_WEIGHT = int(line_weight_entry.get())
-    SCALE = int(scale_entry.get())
+    MIN_LOOP = int(min_loop_slider.get())
+    MIN_DISTANCE = int(min_distance_slider.get())
+    LINE_WEIGHT = int(line_weight_slider.get())
+    SCALE = int(scale_slider.get())
     INVERT = invert_var.get()
     FILE_PATH = file_path_entry.get()
     GRAYSCALE = grayscale_var.get()
@@ -200,34 +200,86 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
     return combined_result, lengths, diffs
 
 tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG).grid(row=0, column=0)
-set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 set_lines_entry.insert(0, SET_LINES)
 set_lines_entry.grid(row=0, column=1)
 
 tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG).grid(row=1, column=0)
-n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 n_pins_entry.insert(0, N_PINS)
 n_pins_entry.grid(row=1, column=1)
 
+def sync_min_loop_entry(event):
+    min_loop_entry.delete(0, tk.END)
+    min_loop_entry.insert(0, min_loop_slider.get())
+
+def sync_min_loop_slider(event):
+    min_loop_slider.set(min_loop_entry.get())
+
+def sync_min_distance_entry(event):
+    min_distance_entry.delete(0, tk.END)
+    min_distance_entry.insert(0, min_distance_slider.get())
+
+def sync_min_distance_slider(event):
+    min_distance_slider.set(min_distance_entry.get())
+
+def sync_scale_entry(event):
+    scale_entry.delete(0, tk.END)
+    scale_entry.insert(0, scale_slider.get())
+
+def sync_scale_slider(event):
+    scale_slider.set(scale_entry.get())
+
+def sync_line_weight_entry(event):
+    line_weight_entry.delete(0, tk.END)
+    line_weight_entry.insert(0, line_weight_slider.get())
+
+def sync_line_weight_slider(event):
+    line_weight_slider.set(line_weight_entry.get())
+
 tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG).grid(row=2, column=0)
-min_loop_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_slider = tk.Scale(root, from_=1, to=10, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_slider.set(MIN_LOOP)
+min_loop_slider.grid(row=2, column=1)
+min_loop_slider.bind("<Motion>", sync_min_loop_entry)
+
+min_loop_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 min_loop_entry.insert(0, MIN_LOOP)
-min_loop_entry.grid(row=2, column=1)
+min_loop_entry.grid(row=2, column=2)
+min_loop_entry.bind("<KeyRelease>", sync_min_loop_slider)
 
 tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG).grid(row=3, column=0)
-min_distance_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_slider = tk.Scale(root, from_=1, to=10, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_slider.set(MIN_DISTANCE)
+min_distance_slider.grid(row=3, column=1)
+min_distance_slider.bind("<Motion>", sync_min_distance_entry)
+
+min_distance_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 min_distance_entry.insert(0, MIN_DISTANCE)
-min_distance_entry.grid(row=3, column=1)
+min_distance_entry.grid(row=3, column=2)
+min_distance_entry.bind("<KeyRelease>", sync_min_distance_slider)
 
 tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG).grid(row=4, column=0)
-line_weight_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_slider = tk.Scale(root, from_=1, to=40, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_slider.set(LINE_WEIGHT)
+line_weight_slider.grid(row=4, column=1)
+line_weight_slider.bind("<Motion>", sync_line_weight_entry)
+
+line_weight_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 line_weight_entry.insert(0, LINE_WEIGHT)
-line_weight_entry.grid(row=4, column=1)
+line_weight_entry.grid(row=4, column=2)
+line_weight_entry.bind("<KeyRelease>", sync_line_weight_slider)
 
 tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG).grid(row=5, column=0)
-scale_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
+scale_slider = tk.Scale(root, from_=1, to=10, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+scale_slider.set(SCALE)
+scale_slider.grid(row=5, column=1)
+scale_slider.bind("<Motion>", sync_scale_entry)
+
+scale_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 scale_entry.insert(0, SCALE)
-scale_entry.grid(row=5, column=1)
+scale_entry.grid(row=5, column=2)
+scale_entry.bind("<KeyRelease>", sync_scale_slider)
 
 tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG).grid(row=6, column=0)
 grayscale_check = tk.Checkbutton(root, variable=grayscale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
@@ -240,14 +292,14 @@ invert_check.grid(row=7, column=1)
 tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG).grid(row=8, column=0, **padding_options)
 file_path_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
 file_path_entry.insert(0, FILE_PATH)
-file_path_entry.grid(row=8, column=1)
+file_path_entry.grid(row=8, column=1,)
 tk.Button(root, text="Browse", command=select_file, bg=TK_SEL_BG, fg=TK_FG).grid(row=8, column=2, **padding_options)
 
 tk.Button(root, text="Apply", command=update_settings, bg=TK_SEL_BG, fg=TK_FG).grid(row=9, columnspan=3)
 tk.Button(root, text="Run Code", command=run_code, bg=TK_SEL_BG, fg=TK_FG).grid(row=10, columnspan=3)
 
 # Create a Text widget to display terminal prints
-output_text = tk.Text(root, bg=TK_SEL_BG, fg=TK_FG, wrap='word', height=5)
+output_text = tk.Text(root, bg=TK_SEL_BG, fg=TK_FG, wrap='word', height=5, width=80)
 output_text.grid(row=12, columnspan=3, **padding_options)
 
 class StdoutRedirector:
