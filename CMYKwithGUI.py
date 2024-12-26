@@ -163,7 +163,7 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     gray_channel = np.array(img_gray)
     
     print("Processing grayscale channel...")
-    length, result, line_number, current_absdiff = string_art(
+    length, result, line_number, current_absdiff, frames = string_art(
         N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel, LINE_COLOR
     )
     
@@ -179,11 +179,12 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
     results = []  # To store results for each channel
     lengths = []  # To store line counts for each channel
     diffs = []    # To store errors for each channel
+    frame_data = []  # To store frame data for each channel
 
     # Process each channel
     for channel_idx, channel_img in enumerate(cmyk_channels):
         print(f"Processing channel {['Cyan', 'Magenta', 'Yellow', 'Black'][channel_idx]}...")        
-        length, result, line_number, current_absdiff = string_art(
+        length, result, line_number, current_absdiff, frames = string_art(
             N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img, LINE_COLOR
         )
         results.append(np.array(result))  # Ensure result is a numpy array
