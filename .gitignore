@@ -6,3 +6,4 @@ gifsicle.exe
 cache.pkl
 /old
 test.py
+pyproject.toml
