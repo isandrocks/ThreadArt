@@ -11,7 +11,8 @@ This project is a Python-based application that creates a string art representat
 ## Features
 
 - Creates a string art representation of an image.
-- Can produce outputs in .PNG, .MP4 formats, and a JSON file with instructions on which pin to run the thread next.
+- Can produce outputs in .PNG and .MP4 formats.
+- it can also create a JSON file with instructions on which pin to run the thread to next.
 - Pin 0 is at the rightmost point and moves up counterclockwise.
 
 ## Installation
