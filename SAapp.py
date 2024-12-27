@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 from tkinter import filedialog
 import random
+from scipy.ndimage import gaussian_filter
 
 def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
     assert img.shape[0] == img.shape[1]
@@ -206,9 +207,18 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         ys = line_cache_y[best_pin * N_PINS + pin]
         weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
 
+        # Apply a Gaussian blur to spread the effect of the line
+        spread_effect = LINE_WEIGHT / 10  # Adjust this factor to control the spread
+        blurred_mask = gaussian_filter(line_mask, sigma=spread_effect)
+
         line_mask.fill(0)
         line_mask[ys, xs] = weight
-        error -= line_mask
+
+        # Combine the masks (e.g., weighted average)
+        alpha = 0.5  # Blending factor: adjust to control the influence of each mask
+        combined_mask = (1 - alpha) * line_mask + alpha * blurred_mask
+
+        error -= combined_mask
         error.clip(0, 255)
 
         # image data
@@ -222,7 +232,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
             (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)
             ]
-        
+
         frames.append(line_segment)
 
         last_pins.append(best_pin)
