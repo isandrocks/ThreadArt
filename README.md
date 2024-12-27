@@ -29,6 +29,7 @@ This project is a Python-based application that creates a string art representat
   ```sh
   pip install -r requirements.txt
   ```
+  this project was built in python 3.12.3
 
 ## Usage
 
