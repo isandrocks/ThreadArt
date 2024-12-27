@@ -116,6 +116,10 @@ def update_settings():
 
 
 def run_code():
+    if FILE_PATH == "":
+        with contextlib.redirect_stdout(StdoutRedirector(output_text)):
+            print("Please select an image file.")
+        return
     update_settings()
     threading.Thread(target=run_string_art).start()
     root.after(100, check_queue)
@@ -162,7 +166,6 @@ def run_string_art():
         MAX_LINES = int(((N_PINS * (N_PINS - 1)) // 2) / 2)
     img = Image.open(FILENAME)
 
-    # Get the dimensions of the image
     width, height = img.size
 
     # Calculate the new dimensions while maintaining aspect ratio
@@ -323,8 +326,13 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
     for channel_idx, channel_img in enumerate(cmyk_channels):
         channel_name = ["Cyan", "Magenta", "Yellow", "Black"][channel_idx]
         root.title(f"Processing channel {channel_name}...")
+        pbar_label.config(text=f"Processing channel {channel_name}...")
         channel_img = ImageOps.grayscale(Image.fromarray(channel_img))
         channel_img = np.array(channel_img)
+        if channel_name == "Black":
+            gs_img = img_cmyk.convert("L")
+            gs_img = ImageOps.invert(gs_img)
+            channel_img = np.array(gs_img)
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
             pin_sequence, result, line_number, current_absdiff, frames = string_art(
                 N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img
@@ -398,6 +406,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
             f.write(str(pin_sequence))
 
     root.title("Edit Settings")
+    pbar_label.config(text=f"Completed processing {os.path.basename(FILE_PATH)}")
 
     # Ensure we have exactly four channels
     if len(results) != 4:
@@ -576,12 +585,12 @@ eta_label = tk.Label(root, bg=TK_BG, fg=TK_FG)
 eta_label.grid(row=15, columnspan=99, padx=10, pady=5)
 
 # tooltips
-set_lines_tip = ToolTip(set_lines_label, "Specify the number of lines to draw. Set to 0 for automatic calculation.")
+set_lines_tip = ToolTip(set_lines_label, "Set the number of lines to draw. Set to 0 for automatic calculation.")
 n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be a multiple of 36.")
-min_loop_tip = ToolTip(min_loop_label, "Define the minimum loop count before returning to the same pin.")
+min_loop_tip = ToolTip(min_loop_label, "Set the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
 line_weight_tip = ToolTip(
-    line_weight_label, "Adjust the weight of lines in error calculations. Higher values result in denser line packing."
+    line_weight_label, "Set the weight of lines in error calculations. Higher values result in denser line packing."
 )
 scale_tip = ToolTip(
     scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing."

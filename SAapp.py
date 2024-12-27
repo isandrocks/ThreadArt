@@ -38,7 +38,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
     # Compute the Radon Transform of the image
     theta = np.linspace(0.0, 180.0, max(img.shape), endpoint=False)
-    sinogram = radon(error, theta=theta)
+    sinogram = radon(error, theta=theta, preserve_range=True)
 
     # Normalize the sinogram for line weighting
     sinogram /= sinogram.max()
@@ -102,7 +102,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     draw = ImageDraw.Draw(result)
     line_mask = np.zeros(img.shape, np.float64)
     last_pins = collections.deque(maxlen=MIN_LOOP)
-    last_pincords = collections.deque(maxlen=(MIN_LOOP + 18))
+    last_pincords = collections.deque(maxlen=(MIN_LOOP + 20))
     previous_absdiff = float("inf")
     increase_count = 0
     line_number = 0
@@ -159,7 +159,9 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
         offsets = list(range(MIN_DISTANCE, N_PINS - MIN_DISTANCE))
         random.shuffle(offsets)
+
         for offset in offsets:
+
             test_pin = (pin + offset) % N_PINS
 
             if test_pin in last_pins:
@@ -167,16 +169,8 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
             xs = line_cache_x[test_pin * N_PINS + pin]
             ys = line_cache_y[test_pin * N_PINS + pin]
-            line_len = line_cache_length[test_pin * N_PINS + pin]
-            # Calculate the average error along the line
-            line_err = np.mean(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin]
 
-            # Penalize or scale lines crossing the center
-            mid_x = (x0 + x1) / 2 - center
-            mid_y = (y0 + y1) / 2 - center
-            distance_to_center = np.sqrt(mid_x**2 + mid_y**2)
-            center_penalty = 1.0 + (distance_to_center / (length / 2))
-            line_err /= center_penalty
+            line_err = np.sum(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin]
 
             radon_weight = radon_weights.get((pin, test_pin))
             if radon_weight is None:
@@ -186,7 +180,13 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             total_score = line_err * radon_weight
             op_pin = find_opposite_pin(pin, N_PINS)
 
-            if total_score > max_score or (total_score == max_score and random.random() > 0.5):
+            if total_score > max_score:
+                last_pincords.append(
+                    [
+                        (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
+                        (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
+                    ]
+                )
                 current_pincords = [
                     (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
                     (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
@@ -195,7 +195,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
                     if l > 2000:
                         op_pin_count += 1
                         last_p_count += 1
-                        if op_pin_count > (N_PINS / 6) or last_p_count > 3:
+                        if op_pin_count > (N_PINS / 8) or last_p_count > 4:
                             print("Breaking early due to stagnation. Repeating pin cords")
                             break_outer_loop = True  # Set the flag to break out of the outer loop
                             break
@@ -210,18 +210,10 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         ys = line_cache_y[best_pin * N_PINS + pin]
         weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
 
-        # Apply a Gaussian blur to spread the effect of the line
-        spread_effect = LINE_WEIGHT / 15  # Adjust this factor to control the spread
-        blurred_mask = gaussian_filter(line_mask, sigma=spread_effect)
-
         line_mask.fill(0)
         line_mask[ys, xs] = weight
 
-        # Combine the masks (e.g., weighted average)
-        alpha = 0.5  # Blending factor: adjust to control the influence of each mask
-        combined_mask = (1 - alpha) * line_mask + alpha * blurred_mask
-
-        error -= combined_mask
+        error -= line_mask
         error.clip(0, 255)
 
         # image data
@@ -243,7 +235,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         frames.append(line_segment)
 
         last_pins.append(best_pin)
-        pin_sequence.append((best_pin, find_opposite_pin(pin, N_PINS)))
+        pin_sequence.append(best_pin)
         pin = best_pin
 
     return pin_sequence, result, line_number, current_absdiff, frames
