@@ -6,12 +6,9 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import threading
 import queue
-import sys
 from moviepy import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
-from cProfile import Profile
-from pstats import SortKey, Stats
 
 # Default settings
 SET_LINES = 0
@@ -147,11 +144,10 @@ def run_string_art():
         )
         length = [length]  # Ensure length is a list
     else:
-        with Profile() as pr:
-            result, length, current_absdiff = string_art_cmyk(
+        result, length, current_absdiff = string_art_cmyk(
                 N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
             )
-            Stats(pr).strip_dirs().sort_stats(SortKey.TIME).print_stats(10)
+
 
     print(f"Total lines: {sum(length)}")
 
@@ -475,11 +471,11 @@ invert_check = tk.Checkbutton(root, variable=invert_var, bg=TK_BG, fg=TK_FG, sel
 invert_check.grid(row=7, column=1, **padding_options)
 
 tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG).grid(row=6, column=2, **padding_options)
-save_mp4_check = tk.Checkbutton(root, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_mp4_check.grid(row=6, column=3, **padding_options)
 
 tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG).grid(row=7, column=2, **padding_options)
-save_json_check = tk.Checkbutton(root, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+save_json_check = tk.Checkbutton(root,variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_json_check.grid(row=7, column=3, **padding_options)
 
 tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG).grid(row=8, column=0, **padding_options)
