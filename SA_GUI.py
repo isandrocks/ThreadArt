@@ -40,6 +40,60 @@ os.makedirs(output_dir, exist_ok=True)
 result_queue = queue.Queue()
 
 
+class StdoutRedirector:
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, message):
+        self.text_widget.insert(tk.END, message)
+        self.text_widget.see(tk.END)
+
+    def flush(self):
+        pass
+
+
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip_window = None
+
+        # Bind events to show and hide the tooltip
+        self.widget.bind("<Enter>", self.show_tip)
+        self.widget.bind("<Leave>", self.hide_tip)
+
+    def show_tip(self, event=None):
+        if self.tip_window or not self.text:
+            return
+        
+        # Get the position of the widget
+        x, y, cx, cy = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+
+        # Create the tooltip window
+        self.tip_window = tk.Toplevel(self.widget)
+        self.tip_window.wm_overrideredirect(True)  # Remove window borders
+        self.tip_window.wm_geometry(f"+{x}+{y}")
+
+        # Create the label for the tooltip
+        label = tk.Label(
+            self.tip_window,
+            text=self.text,
+            fg="#d1d1d1",
+            bg="#464646",
+            relief="solid",
+            borderwidth=1,
+            font=("Arial", 10, "normal"),
+        )
+        label.pack()
+
+    def hide_tip(self, event=None):
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
+
+
 def find_time(seconds):
     minutes = round(seconds // 60)
     seconds = round(seconds % 60)
@@ -408,17 +462,23 @@ padding_options = {"padx": 10, "pady": 5, "sticky": "w"}
 
 root.configure(bg=TK_BG)
 
-tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG).grid(row=0, column=0, **padding_options)
+set_lines_label = tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG)
+set_lines_label.grid(row=0, column=0, **padding_options)
+
 set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 set_lines_entry.insert(0, SET_LINES)
 set_lines_entry.grid(row=0, column=1, **padding_options)
 
-tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG).grid(row=0, column=2, **padding_options)
+n_pins_label = tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG)
+n_pins_label.grid(row=0, column=2, **padding_options)
+
 n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 n_pins_entry.insert(0, N_PINS)
 n_pins_entry.grid(row=0, column=3, **padding_options)
 
-tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG).grid(row=2, column=0, **padding_options)
+min_loop_label = tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG)
+min_loop_label.grid(row=2, column=0, **padding_options)
+
 min_loop_slider = tk.Scale(root, from_=1, to=50, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 min_loop_slider.set(MIN_LOOP)
 min_loop_slider.grid(row=2, column=2)
@@ -429,7 +489,9 @@ min_loop_entry.insert(0, MIN_LOOP)
 min_loop_entry.grid(row=2, column=1, **padding_options)
 min_loop_entry.bind("<KeyRelease>", sync_min_loop_slider)
 
-tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG).grid(row=3, column=0, **padding_options)
+min_distance_label = tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG)
+min_distance_label.grid(row=3, column=0, **padding_options)
+
 min_distance_slider = tk.Scale(root, from_=1, to=50, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 min_distance_slider.set(MIN_DISTANCE)
 min_distance_slider.grid(row=3, column=2)
@@ -440,7 +502,9 @@ min_distance_entry.insert(0, MIN_DISTANCE)
 min_distance_entry.grid(row=3, column=1, **padding_options)
 min_distance_entry.bind("<KeyRelease>", sync_min_distance_slider)
 
-tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG).grid(row=4, column=0, **padding_options)
+line_weight_label = tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG)
+line_weight_label.grid(row=4, column=0, **padding_options)
+
 line_weight_slider = tk.Scale(root, from_=1, to=80, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 line_weight_slider.set(LINE_WEIGHT)
 line_weight_slider.grid(row=4, column=2)
@@ -451,7 +515,9 @@ line_weight_entry.insert(0, LINE_WEIGHT)
 line_weight_entry.grid(row=4, column=1, **padding_options)
 line_weight_entry.bind("<KeyRelease>", sync_line_weight_slider)
 
-tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG).grid(row=5, column=0, **padding_options)
+scale_label = tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG)
+scale_label.grid(row=5, column=0, **padding_options)
+
 scale_slider = tk.Scale(root, from_=1, to=10, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 scale_slider.set(SCALE)
 scale_slider.grid(row=5, column=2)
@@ -462,23 +528,33 @@ scale_entry.insert(0, SCALE)
 scale_entry.grid(row=5, column=1, **padding_options)
 scale_entry.bind("<KeyRelease>", sync_scale_slider)
 
-tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG).grid(row=6, column=0, **padding_options)
+grayscale_label = tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG)
+grayscale_label.grid(row=6, column=0, **padding_options)
+
 grayscale_check = tk.Checkbutton(root, variable=grayscale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 grayscale_check.grid(row=6, column=1, **padding_options)
 
-tk.Label(root, text="INVERT", bg=TK_BG, fg=TK_FG).grid(row=7, column=0, **padding_options)
+invert_label = tk.Label(root, text="INVERT", bg=TK_BG, fg=TK_FG)
+invert_label.grid(row=7, column=0, **padding_options)
+
 invert_check = tk.Checkbutton(root, variable=invert_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 invert_check.grid(row=7, column=1, **padding_options)
 
-tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG).grid(row=6, column=2, **padding_options)
+save_mp4_label = tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG)
+save_mp4_label.grid(row=6, column=2, **padding_options)
+
 save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_mp4_check.grid(row=6, column=3, **padding_options)
 
-tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG).grid(row=7, column=2, **padding_options)
+save_json_label = tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG)
+save_json_label.grid(row=7, column=2, **padding_options)
+
 save_json_check = tk.Checkbutton(root,variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_json_check.grid(row=7, column=3, **padding_options)
 
-tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG).grid(row=8, column=0, **padding_options)
+file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
+file_path_label.grid(row=8, column=0, **padding_options)
+
 file_path_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
 file_path_entry.insert(0, FILE_PATH)
 file_path_entry.grid(row=8, column=1, columnspan=2, **padding_options)
@@ -503,17 +579,17 @@ progress_bar.grid(row=14, columnspan=99, padx=10, pady=5)
 eta_label = tk.Label(root, bg=TK_BG, fg=TK_FG)
 eta_label.grid(row=15, columnspan=99, padx=10, pady=5)
 
-
-class StdoutRedirector:
-    def __init__(self, text_widget):
-        self.text_widget = text_widget
-
-    def write(self, message):
-        self.text_widget.insert(tk.END, message)
-        self.text_widget.see(tk.END)
-
-    def flush(self):
-        pass
+# tooltips
+set_lines_tip = ToolTip(set_lines_label, "Specify the number of lines to draw. Set to 0 for automatic calculation.")
+n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be a multiple of 36.")
+min_loop_tip = ToolTip(min_loop_label, "Define the minimum loop count before returning to the same pin.")
+min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
+line_weight_tip = ToolTip(line_weight_label, "Adjust the weight of lines in error calculations. Higher values result in denser line packing.")
+scale_tip = ToolTip(scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing.")
+grayscale_tip = ToolTip(grayscale_label, "Convert the image to grayscale, using only black lines for drawing.")
+invert_tip = ToolTip(invert_label, "Invert the image before processing. Can improve results for color images.")
+save_mp4_tip = ToolTip(save_mp4_label, "Save the creation process as an MP4 video file.")
+save_json_tip = ToolTip(save_json_label, "Save the pin sequence in a JSON file.")
 
 
 root.mainloop()

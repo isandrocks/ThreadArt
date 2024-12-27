@@ -122,7 +122,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         #check for differance between the original image and the current image
         if l % 100 == 0:
             opc_error.append(op_pin_count)
-            if sum(opc_error) >= (N_PINS / 4):
+            if sum(opc_error) >= (N_PINS / 2):
                 print("Breaking early due to cross center stagnation.")
                 break
             op_pin_count = 0
