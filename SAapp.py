@@ -2,10 +2,9 @@ from skimage.transform import radon
 import collections
 import math
 import os
-from PIL import Image, ImageOps, ImageDraw, ImageEnhance
+from PIL import Image, ImageOps, ImageDraw
 import numpy as np
 import time
-import svgwrite
 import tkinter as tk
 from tkinter import filedialog
 import random
@@ -34,7 +33,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     )
 
     error = np.ones(img.shape) * 0xFF - img.copy()
-    
+
     # Compute the Radon Transform of the image
     theta = np.linspace(0., 180., max(img.shape), endpoint=False)
     sinogram = radon(error, theta=theta)
@@ -58,28 +57,28 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         distance = np.sqrt(mid_x ** 2 + mid_y ** 2)
 
         distance_scaled = int((distance * distance_scale_factor)-1)
-        
+
         return sinogram[distance_scaled, angle_idx]
-    
+
     print("Precalculating all lines... ", end="", flush=True)
-   
+
     # Precompute lines between pins
     line_cache_y = [None] * N_PINS * N_PINS
     line_cache_x = [None] * N_PINS * N_PINS
     line_cache_weight = [1] * N_PINS * N_PINS
     line_cache_length = [0] * N_PINS * N_PINS
     radon_weights = {}
-     
+
     for a in range(N_PINS):
         for b in range(a + MIN_DISTANCE, N_PINS):
             x0, y0 = pin_coords[a]
             x1, y1 = pin_coords[b]
 
             d = int(math.sqrt((x1 - x0) ** 2 + (y0 - y1) ** 2))
-        
+
             xs = np.linspace(x0, x1, d, dtype=int)
             ys = np.linspace(y0, y1, d, dtype=int)
-        
+
             # Store the calculated values in the cache
             line_cache_y[b * N_PINS + a] = ys
             line_cache_y[a * N_PINS + b] = ys
@@ -89,9 +88,9 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             line_cache_length[a * N_PINS + b] = d
 
             radon_weights[(a, b)] = line_to_radon_weight(pin_coords[a], pin_coords[b])
-                    
+
     print("done")
-    
+
     def find_opposite_pin(pin, N_PINS):
         return (pin + N_PINS // 2) % N_PINS
 
@@ -100,14 +99,16 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     result = Image.new('L', (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
     draw = ImageDraw.Draw(result)
     line_mask = np.zeros(img.shape, np.float64)
-    last_pins = collections.deque(maxlen=MIN_LOOP)  
-    last_pincords = collections.deque(maxlen=(MIN_LOOP + 10))  
+    last_pins = collections.deque(maxlen=MIN_LOOP)
+    last_pincords = collections.deque(maxlen=(MIN_LOOP + 18))
     previous_absdiff = float('inf')
-    increase_count = 0   
-    line_number = 0 
-    frames = [] 
-    pin = 0  
-    op_pin_count = 0 
+    increase_count = 0
+    line_number = 0
+    frames = []
+    pin_sequence = []
+    pin = 0
+    op_pin_count = 0
+    opc_error = []
     last_p_count = 0
     break_outer_loop = False  # Flag to break out of the outer loop
 
@@ -115,11 +116,16 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     for l in range(MAX_LINES):
         if break_outer_loop:
             break  # Break out of the outer loop if the flag is set
-        line_number += 1 
-        
+        line_number += 1
+
         #check for differance between the original image and the current image
         if l % 100 == 0:
-            
+            opc_error.append(op_pin_count)
+            if sum(opc_error) >= (N_PINS / 4):
+                print("Breaking early due to cross center stagnation.")
+                break
+            op_pin_count = 0
+
             img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
             img_result = np.array(img_result)
 
@@ -127,7 +133,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             mul = np.uint8(img_result < img) * 254 + 1
             absdiff = diff * mul
             current_absdiff = absdiff.sum() / (length * length)
-        
+
             max_possible_absdiff = 255
             percentage_diff = (current_absdiff / max_possible_absdiff) * 100
             print(f"{l} {percentage_diff:.2f}%")
@@ -135,12 +141,12 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             #break out of the loop if the difference is less than 1e-3
             if l > 1000:
                 improvement = previous_absdiff - current_absdiff
-                if improvement < 0.025:  
+                if improvement < 0.025:
                     increase_count += 1
                 else:
                     increase_count = 0
 
-                if increase_count >= 2:
+                if increase_count >= 3:
                     print("Breaking early due to stagnation.")
                     break
 
@@ -160,33 +166,38 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             xs = line_cache_x[test_pin * N_PINS + pin]
             ys = line_cache_y[test_pin * N_PINS + pin]
             line_len = line_cache_length[test_pin * N_PINS + pin]
-            line_err = np.sum(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin] / line_len
+            # Calculate the average error along the line
+            line_err = np.mean(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin]
+
+            # Penalize or scale lines crossing the center
+            mid_x = (x0 + x1) / 2 - center
+            mid_y = (y0 + y1) / 2 - center
+            distance_to_center = np.sqrt(mid_x**2 + mid_y**2)
+            center_penalty = 1.0 + (distance_to_center / (length / 2))
+            line_err /= center_penalty
 
             radon_weight = radon_weights.get((pin, test_pin))
             if radon_weight is None:
                 radon_weight = line_to_radon_weight(pin_coords[pin], pin_coords[test_pin])
                 radon_weights[(pin, test_pin)] = radon_weight
-            length_factor = 0.8 / line_len if line_len > 0 else 0
 
-
-            # Add penalty for opposite pin
-            opposite_pin_penalty = 0.2 if test_pin == find_opposite_pin(pin, N_PINS) else 1.0
-
-            total_score = line_err * radon_weight * opposite_pin_penalty
+            total_score = line_err * radon_weight
+            op_pin = find_opposite_pin(pin, N_PINS)
 
             if total_score > max_score or (total_score == max_score and random.random() > 0.5):
-                current_pincords = [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE), (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE)]            
-                if current_pincords in last_pincords or test_pin == find_opposite_pin(pin, N_PINS):
+                current_pincords = [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE), (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE)]
+                if current_pincords in last_pincords or test_pin == op_pin:
                     op_pin_count += 1
                     last_p_count += 1
-                    if op_pin_count > 30 or last_p_count > 3:
+                    if op_pin_count > (N_PINS / 8) or last_p_count > 3:
                         print("Breaking early due to stagnation. Repeating pin cords")
                         break_outer_loop = True  # Set the flag to break out of the outer loop
                         break
                 else:
-                    last_p_count = 0  
-                 
-                last_pincords.append(current_pincords)                     
+                    last_p_count = 0
+
+
+                last_pincords.append(current_pincords)
                 max_score = total_score
                 best_pin = test_pin
 
@@ -204,20 +215,23 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
          (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)],
         fill=0, width=1)
-        
+
         #frame data
         line_segment = [
             (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
             (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)
-            ]           
+            ]
+        
         frames.append(line_segment)
 
         last_pins.append(best_pin)
+        pin_sequence.append((best_pin, find_opposite_pin(pin, N_PINS)))
         pin = best_pin
-    return length,result,line_number,current_absdiff,frames
+
+    return pin_sequence,result,line_number,current_absdiff,frames
 
 def main():
-    
+
 
     # Create a Tkinter root window (it will not be shown)
     root = tk.Tk()
@@ -228,7 +242,7 @@ def main():
         title="Select an image file",
         filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")]
     )
-    
+
     output_dir = os.path.join(os.path.dirname(__file__), 'output')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -236,15 +250,11 @@ def main():
 
     N_PINS = 36 * 8  # Number of pins
     MIN_LOOP = 1  # Minimum loop before it returns to the same pin
-    MIN_DISTANCE = 3 # Minimum distance between pins 
+    MIN_DISTANCE = 3 # Minimum distance between pins
     LINE_WEIGHT = 40  # Line weight (thickness) more = darker
     FILENAME = file_path  # File path of the image
     SCALE = 4  # Scale factor it wll revert back to 1024 x 1024 once it is done
-    SHARP = .8  # Sharpness enhancement factor
-    BRIGHT = 0.8  # Brightness enhancement factor
-    CONTRAST = 1  # Contrast enhancement factor
-    LINE_COLOR = "black"  # Line color  
-    
+
     if SET_LINES != 0:
         MAX_LINES = SET_LINES
     else:
@@ -254,24 +264,6 @@ def main():
 
     # Load and preprocess the image
     img = Image.open(FILENAME).convert("L")
-
-    L_test = np.array(img)
-
-    # Auto image adjustments
-    average_luminance = L_test.mean() / 255.0 * 2.0
-    print(f"Average luminance: {average_luminance}")
-    #BRIGHT = float(f"{2.0 - average_luminance:.2f}")
-    if average_luminance > 0.4: 
-        LINE_WEIGHT = LINE_WEIGHT - 2 
-        
-    if average_luminance < 0.2:
-        CONTRAST = 2.0
-        LINE_WEIGHT = LINE_WEIGHT - 2
-        BRIGHT = BRIGHT + 0.2
-        
-    if average_luminance > 1.5:
-        LINE_WEIGHT = LINE_WEIGHT + 5
-        CONTRAST = 2.0
 
     # Get the dimensions of the image
     width, height = img.size
@@ -297,21 +289,9 @@ def main():
 
     img = ImageOps.grayscale(new_image)
 
-    # Increase sharpness
-    sharpness_enhancer = ImageEnhance.Sharpness(img)
-    img = sharpness_enhancer.enhance(SHARP)
-    # Increase contrast
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(CONTRAST)  
-    # Increase brightness
-    brightness_enhancer = ImageEnhance.Brightness(img)
-    img = brightness_enhancer.enhance(BRIGHT)
-
     img = np.array(img)
-    average_luminance = img.mean() / 255.0 * 2.0
-    print(f"Average luminance: {average_luminance}")
 
-    length, result, line_number, current_absdiff, frames = string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, LINE_COLOR) 
+    pin_sequence, result, line_number, current_absdiff, frames = string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
 
     img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
     img_result = np.array(img_result)
@@ -327,15 +307,11 @@ def main():
     print("%.1f seconds" % (toc - tic))
 
     result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
-
-    result.shape = (length, length)
-
-    result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
     result_1024.save(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + f"_LW_{LINE_WEIGHT}".replace('.', '_') + ".png"))
 
-    
+
     with open(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + ".json"), "w") as f:
-            f.write(str(frames))
+            f.write(str(pin_sequence))
 
 if __name__ == "__main__":
     main()

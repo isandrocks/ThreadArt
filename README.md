@@ -11,7 +11,7 @@ This project is a Python-based application that creates a string art representat
 ## Features
 
 - Creates a string art representation of an image.
-- Can produce outputs in .PNG, .MP4, .SVG formats, and a JSON file with instructions on which pin to run the thread next.
+- Can produce outputs in .PNG, .MP4 formats, and a JSON file with instructions on which pin to run the thread next.
 - Pin 0 is at the rightmost point and moves up counterclockwise.
 
 ## Installation
@@ -33,11 +33,7 @@ This project is a Python-based application that creates a string art representat
 
 1. Run the main script:
   ```sh
-  CMYKwithGUI.py
-  ```
-  or if you want a .mp4 video
-  ```sh
-  SAwithvisulizer.py
+  SA_GUI.py
   ```
 2. Follow the on-screen instructions to manipulate your images.
 
