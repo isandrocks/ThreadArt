@@ -208,7 +208,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
 
         # Apply a Gaussian blur to spread the effect of the line
-        spread_effect = LINE_WEIGHT / 10  # Adjust this factor to control the spread
+        spread_effect = LINE_WEIGHT / 15  # Adjust this factor to control the spread
         blurred_mask = gaussian_filter(line_mask, sigma=spread_effect)
 
         line_mask.fill(0)

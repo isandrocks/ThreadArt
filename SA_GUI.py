@@ -13,13 +13,13 @@ from tqdm import tqdm
 # Default settings
 SET_LINES = 0
 N_PINS = 36 * 8
-MIN_LOOP = 10
-MIN_DISTANCE = 15
-LINE_WEIGHT = 30
-SCALE = 4
+MIN_LOOP = 5
+MIN_DISTANCE = 5
+LINE_WEIGHT = 25
+SCALE = 7
 INVERT = False
 FILE_PATH = ""
-GRAYSCALE = False
+GRAYSCALE = True
 SAVE_MP4 = False
 SAVE_JSON = False
 
