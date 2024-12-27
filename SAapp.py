@@ -10,6 +10,7 @@ from tkinter import filedialog
 import random
 from scipy.ndimage import gaussian_filter
 
+
 def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
     assert img.shape[0] == img.shape[1]
     length = img.shape[0]
@@ -27,16 +28,16 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
     for i in range(N_PINS):
         angle = 2 * math.pi * i / N_PINS
         pin_coords.append(
-        (
-            math.floor(center + radius * math.cos(angle)),
-            math.floor(center + radius * math.sin(angle)),
+            (
+                math.floor(center + radius * math.cos(angle)),
+                math.floor(center + radius * math.sin(angle)),
+            )
         )
-    )
 
     error = np.ones(img.shape) * 0xFF - img.copy()
 
     # Compute the Radon Transform of the image
-    theta = np.linspace(0., 180., max(img.shape), endpoint=False)
+    theta = np.linspace(0.0, 180.0, max(img.shape), endpoint=False)
     sinogram = radon(error, theta=theta)
 
     # Normalize the sinogram for line weighting
@@ -55,9 +56,9 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
         mid_x = (x0 + x1) / 2 - center
         mid_y = (y0 + y1) / 2 - center
-        distance = np.sqrt(mid_x ** 2 + mid_y ** 2)
+        distance = np.sqrt(mid_x**2 + mid_y**2)
 
-        distance_scaled = int((distance * distance_scale_factor)-1)
+        distance_scaled = int((distance * distance_scale_factor) - 1)
 
         return sinogram[distance_scaled, angle_idx]
 
@@ -97,12 +98,12 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
     # Initialize variables for the calculation loop
     img_result = np.ones(img.shape) * 0xFF
-    result = Image.new('L', (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
+    result = Image.new("L", (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
     draw = ImageDraw.Draw(result)
     line_mask = np.zeros(img.shape, np.float64)
     last_pins = collections.deque(maxlen=MIN_LOOP)
     last_pincords = collections.deque(maxlen=(MIN_LOOP + 18))
-    previous_absdiff = float('inf')
+    previous_absdiff = float("inf")
     increase_count = 0
     line_number = 0
     frames = []
@@ -119,7 +120,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             break  # Break out of the outer loop if the flag is set
         line_number += 1
 
-        #check for differance between the original image and the current image
+        # check for differance between the original image and the current image
         if l % 100 == 0:
             opc_error.append(op_pin_count)
             if sum(opc_error) >= (N_PINS / 2):
@@ -139,10 +140,10 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             percentage_diff = (current_absdiff / max_possible_absdiff) * 100
             print(f"{l} {percentage_diff:.2f}%")
 
-            #break out of the loop if the difference is less than 1e-3
+            # break out of the loop if the difference is less than 1e-3
             if l > 1000:
                 improvement = previous_absdiff - current_absdiff
-                if improvement < 0.025:
+                if improvement < 1e-3:
                     increase_count += 1
                 else:
                     increase_count = 0
@@ -186,7 +187,10 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             op_pin = find_opposite_pin(pin, N_PINS)
 
             if total_score > max_score or (total_score == max_score and random.random() > 0.5):
-                current_pincords = [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE), (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE)]
+                current_pincords = [
+                    (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
+                    (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
+                ]
                 if current_pincords in last_pincords or test_pin == op_pin:
                     if l > 2000:
                         op_pin_count += 1
@@ -197,7 +201,6 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
                             break
                 else:
                     last_p_count = 0
-
 
                 last_pincords.append(current_pincords)
                 max_score = total_score
@@ -223,15 +226,19 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
         # image data
         draw.line(
-        [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
-         (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)],
-        fill=0, width=1)
+            [
+                (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
+                (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE),
+            ],
+            fill=0,
+            width=1,
+        )
 
-        #frame data
+        # frame data
         line_segment = [
             (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
-            (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE)
-            ]
+            (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE),
+        ]
 
         frames.append(line_segment)
 
@@ -239,10 +246,10 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         pin_sequence.append((best_pin, find_opposite_pin(pin, N_PINS)))
         pin = best_pin
 
-    return pin_sequence,result,line_number,current_absdiff,frames
+    return pin_sequence, result, line_number, current_absdiff, frames
+
 
 def main():
-
 
     # Create a Tkinter root window (it will not be shown)
     root = tk.Tk()
@@ -250,18 +257,17 @@ def main():
 
     # Open a file dialog to select the file
     file_path = filedialog.askopenfilename(
-        title="Select an image file",
-        filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")]
+        title="Select an image file", filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")]
     )
 
-    output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    output_dir = os.path.join(os.path.dirname(__file__), "output")
     os.makedirs(output_dir, exist_ok=True)
 
     SET_LINES = 0
 
     N_PINS = 36 * 8  # Number of pins
     MIN_LOOP = 1  # Minimum loop before it returns to the same pin
-    MIN_DISTANCE = 3 # Minimum distance between pins
+    MIN_DISTANCE = 3  # Minimum distance between pins
     LINE_WEIGHT = 40  # Line weight (thickness) more = darker
     FILENAME = file_path  # File path of the image
     SCALE = 4  # Scale factor it wll revert back to 1024 x 1024 once it is done
@@ -294,7 +300,9 @@ def main():
     resized_image = img.resize((new_width, new_height))
 
     if resized_image.size[0] != resized_image.size[1]:
-        new_image = resized_image.crop((new_width // 2 - 256, new_height // 2 - 256, new_width // 2 + 256, new_height // 2 + 256))
+        new_image = resized_image.crop(
+            (new_width // 2 - 256, new_height // 2 - 256, new_width // 2 + 256, new_height // 2 + 256)
+        )
     else:
         new_image = resized_image
 
@@ -302,7 +310,9 @@ def main():
 
     img = np.array(img)
 
-    pin_sequence, result, line_number, current_absdiff, frames = string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img)
+    pin_sequence, result, line_number, current_absdiff, frames = string_art(
+        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
+    )
 
     img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
     img_result = np.array(img_result)
@@ -313,16 +323,21 @@ def main():
     # Print the percentage difference
     print(f"{percentage_diff:.2f}%")
 
-    print('\x07')
+    print("\x07")
     toc = time.perf_counter()
     print("%.1f seconds" % (toc - tic))
 
     result_1024 = result.resize((1024, 1024), Image.Resampling.LANCZOS)
-    result_1024.save(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + f"_LW_{LINE_WEIGHT}".replace('.', '_') + ".png"))
-
+    result_1024.save(
+        os.path.join(
+            output_dir,
+            os.path.splitext(os.path.basename(FILENAME))[0] + f"_LW_{LINE_WEIGHT}".replace(".", "_") + ".png",
+        )
+    )
 
     with open(os.path.join(output_dir, os.path.splitext(os.path.basename(FILENAME))[0] + ".json"), "w") as f:
-            f.write(str(pin_sequence))
+        f.write(str(pin_sequence))
+
 
 if __name__ == "__main__":
     main()

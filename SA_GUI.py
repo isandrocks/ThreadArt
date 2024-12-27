@@ -65,7 +65,7 @@ class ToolTip:
     def show_tip(self, event=None):
         if self.tip_window or not self.text:
             return
-        
+
         # Get the position of the widget
         x, y, cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
@@ -199,9 +199,8 @@ def run_string_art():
         length = [length]  # Ensure length is a list
     else:
         result, length, current_absdiff = string_art_cmyk(
-                N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
-            )
-
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
+        )
 
     print(f"Total lines: {sum(length)}")
 
@@ -241,69 +240,67 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     gray_channel = np.array(img_gray)
 
     with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-      print("Processing grayscale channel...")
-      pin_sequence, result, line_number, current_absdiff, frames = string_art(
-          N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel
-      )
+        print("Processing grayscale channel...")
+        pin_sequence, result, line_number, current_absdiff, frames = string_art(
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel
+        )
 
     result_img = Image.fromarray(np.array(result))
-    
-      # Create video frames
-    if SAVE_MP4:		
-      frame = Image.new("L", (img.size[0] * SCALE, img.size[1] * SCALE), 0xFF)		
-      print("Reconstructing frame data...")
-      pbar_label.config(text=f"grayscale channel reconstruction...")
-      progress_bar["value"] = 0
-      tk_pbar = progress_bar["value"]
-      progress_bar["maximum"] = len(frames)
-      root.update_idletasks()
-      loop_ips = 1
-      frame_idx = 0
-      video_frames = []
 
-      with tqdm(total=len(frames)) as pbar:
-          for frame_data in frames:
-              frame_idx += 1
-              draw = ImageDraw.Draw(frame)
-              draw.line(frame_data, fill=0, width=1)
-              resized_frame = frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
-              if INVERT:
-                  resized_frame = ImageOps.invert(resized_frame)
-              video_frames.append(resized_frame)
+    # Create video frames
+    if SAVE_MP4:
+        frame = Image.new("L", (img.size[0] * SCALE, img.size[1] * SCALE), 0xFF)
+        print("Reconstructing frame data...")
+        pbar_label.config(text=f"grayscale channel reconstruction...")
+        progress_bar["value"] = 0
+        tk_pbar = progress_bar["value"]
+        progress_bar["maximum"] = len(frames)
+        root.update_idletasks()
+        loop_ips = 1
+        frame_idx = 0
+        video_frames = []
 
-              # stats update
-              tk_pbar = tk_pbar + 1
-              progress_bar["value"] = tk_pbar
-              pbar_dict = pbar.format_dict
-              loop_time = round(pbar_dict["elapsed"])
-              if frame_idx % 10 == 0:
-                  loop_ips = pbar_dict["rate"]
-                  if loop_ips is not None:
-                      loop_ips = round(loop_ips * 100)
-                      loop_ips = loop_ips / 100
-                  else:
-                      loop_ips = 1
+        with tqdm(total=len(frames)) as pbar:
+            for frame_data in frames:
+                frame_idx += 1
+                draw = ImageDraw.Draw(frame)
+                draw.line(frame_data, fill=0, width=1)
+                resized_frame = frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
+                if INVERT:
+                    resized_frame = ImageOps.invert(resized_frame)
+                video_frames.append(resized_frame)
 
-              start_eta = len(frames) / loop_ips
-              current_eta = start_eta - loop_time
-              current_minutes, current_seconds = find_time(current_eta)
+                # stats update
+                tk_pbar = tk_pbar + 1
+                progress_bar["value"] = tk_pbar
+                pbar_dict = pbar.format_dict
+                loop_time = round(pbar_dict["elapsed"])
+                if frame_idx % 10 == 0:
+                    loop_ips = pbar_dict["rate"]
+                    if loop_ips is not None:
+                        loop_ips = round(loop_ips * 100)
+                        loop_ips = loop_ips / 100
+                    else:
+                        loop_ips = 1
 
-              eta_label.config(
-                  text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
-              )
-              pbar.update(1)
-              root.update_idletasks()
+                start_eta = len(frames) / loop_ips
+                current_eta = start_eta - loop_time
+                current_minutes, current_seconds = find_time(current_eta)
 
-      # Save the frames as an MP4 video
-      clip = ImageSequenceClip(
-          [np.array(frame) for frame in video_frames], fps=(line_number / 17)
-      )
-      with contextlib.redirect_stdout(StdoutRedirector(output_text)):  
-        clip.write_videofile((output_path + "_grayscale_output.mp4"), codec="libx264")
+                eta_label.config(
+                    text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
+                )
+                pbar.update(1)
+                root.update_idletasks()
+
+        # Save the frames as an MP4 video
+        clip = ImageSequenceClip([np.array(frame) for frame in video_frames], fps=(line_number / 17))
+        with contextlib.redirect_stdout(StdoutRedirector(output_text)):
+            clip.write_videofile((output_path + "_grayscale_output.mp4"), codec="libx264")
 
     if SAVE_JSON:
-      with open((output_path + ".json"), "w") as f:
-        f.write(str(pin_sequence))
+        with open((output_path + ".json"), "w") as f:
+            f.write(str(pin_sequence))
 
     return result_img, line_number, current_absdiff
 
@@ -338,69 +335,67 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
         frame_data.append(frames)
 
         if SAVE_MP4:
-          idx_color = [(100, 0, 0, 0), (0, 100, 0, 0), (0, 0, 100, 0), (0, 0, 0, 100)][channel_idx]
+            idx_color = [(100, 0, 0, 0), (0, 100, 0, 0), (0, 0, 100, 0), (0, 0, 0, 100)][channel_idx]
 
-          def reconstruct_frame(lines, frame):
-              draw_frame = trasparent_frame.copy()
-              draw = ImageDraw.Draw(draw_frame)
-              draw.line(lines, fill=idx_color, width=1)
-              if channel_name == "Black":
-                  frame = ImageChops.subtract(frame, draw_frame)
-              else:
-                  frame = ImageChops.add(frame, draw_frame)
-              del draw
-              return frame
+            def reconstruct_frame(lines, frame):
+                draw_frame = trasparent_frame.copy()
+                draw = ImageDraw.Draw(draw_frame)
+                draw.line(lines, fill=idx_color, width=1)
+                if channel_name == "Black":
+                    frame = ImageChops.subtract(frame, draw_frame)
+                else:
+                    frame = ImageChops.add(frame, draw_frame)
+                del draw
+                return frame
 
-          pbar_label.config(text=f"{channel_name} channel reconstruction...")
-          progress_bar["value"] = 0
-          tk_pbar = progress_bar["value"]
-          progress_bar["maximum"] = len(frames)
-          root.update_idletasks()
-          loop_ips = 1
+            pbar_label.config(text=f"{channel_name} channel reconstruction...")
+            progress_bar["value"] = 0
+            tk_pbar = progress_bar["value"]
+            progress_bar["maximum"] = len(frames)
+            root.update_idletasks()
+            loop_ips = 1
 
-          with tqdm(total=(len(frames))) as pbar:
-              for frame_idx, frame_data in enumerate(frames):
-                  video_frame = reconstruct_frame(frame_data, frame)
-                  frame = video_frame
-                  resized_frame = video_frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
-                  if not INVERT:
-                      resized_frame = ImageOps.invert(resized_frame)
-                  video_frames.append(resized_frame)
+            with tqdm(total=(len(frames))) as pbar:
+                for frame_idx, frame_data in enumerate(frames):
+                    video_frame = reconstruct_frame(frame_data, frame)
+                    frame = video_frame
+                    resized_frame = video_frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
+                    if not INVERT:
+                        resized_frame = ImageOps.invert(resized_frame)
+                    video_frames.append(resized_frame)
 
-                  # stats update
-                  tk_pbar = tk_pbar + 1
-                  progress_bar["value"] = tk_pbar
-                  pbar_dict = pbar.format_dict
-                  loop_time = round(pbar_dict["elapsed"])
-                  if frame_idx % 10 == 0:
-                      loop_ips = pbar_dict["rate"]
-                      if loop_ips is not None:
-                          loop_ips = round(loop_ips * 100)
-                          loop_ips = loop_ips / 100
-                      else:
-                          loop_ips = 1
+                    # stats update
+                    tk_pbar = tk_pbar + 1
+                    progress_bar["value"] = tk_pbar
+                    pbar_dict = pbar.format_dict
+                    loop_time = round(pbar_dict["elapsed"])
+                    if frame_idx % 10 == 0:
+                        loop_ips = pbar_dict["rate"]
+                        if loop_ips is not None:
+                            loop_ips = round(loop_ips * 100)
+                            loop_ips = loop_ips / 100
+                        else:
+                            loop_ips = 1
 
-                  start_eta = len(frames) / loop_ips
-                  current_eta = start_eta - loop_time
-                  current_minutes, current_seconds = find_time(current_eta)
+                    start_eta = len(frames) / loop_ips
+                    current_eta = start_eta - loop_time
+                    current_minutes, current_seconds = find_time(current_eta)
 
-                  eta_label.config(
-                      text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
-                  )
-                  pbar.update(1)
-                  root.update_idletasks()
+                    eta_label.config(
+                        text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
+                    )
+                    pbar.update(1)
+                    root.update_idletasks()
 
     if SAVE_MP4:
-    # Save the frames as an MP4 video
-      clip = ImageSequenceClip(
-          [np.array(frame) for frame in video_frames], fps=((sum(total_lines) / 17) / 4)
-      )
-      with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-        clip.write_videofile((output_path + "CMYK_output.mp4"), codec="libx264")
+        # Save the frames as an MP4 video
+        clip = ImageSequenceClip([np.array(frame) for frame in video_frames], fps=((sum(total_lines) / 17) / 4))
+        with contextlib.redirect_stdout(StdoutRedirector(output_text)):
+            clip.write_videofile((output_path + "CMYK_output.mp4"), codec="libx264")
 
     if SAVE_JSON:
-      with open((output_path + "_CMKY.json"), "w") as f:
-        f.write(str(pin_sequence))
+        with open((output_path + "_CMKY.json"), "w") as f:
+            f.write(str(pin_sequence))
 
     root.title("Edit Settings")
 
@@ -452,6 +447,7 @@ def sync_line_weight_slider(event):
 
 def update_label_text(event):
     pbar_label.config(text=root.title())
+
 
 # Tkinter window colors and theme
 TK_BG = "#272727"
@@ -549,7 +545,7 @@ save_mp4_check.grid(row=6, column=3, **padding_options)
 save_json_label = tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG)
 save_json_label.grid(row=7, column=2, **padding_options)
 
-save_json_check = tk.Checkbutton(root,variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+save_json_check = tk.Checkbutton(root, variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_json_check.grid(row=7, column=3, **padding_options)
 
 file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
@@ -584,8 +580,12 @@ set_lines_tip = ToolTip(set_lines_label, "Specify the number of lines to draw. S
 n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be a multiple of 36.")
 min_loop_tip = ToolTip(min_loop_label, "Define the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
-line_weight_tip = ToolTip(line_weight_label, "Adjust the weight of lines in error calculations. Higher values result in denser line packing.")
-scale_tip = ToolTip(scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing.")
+line_weight_tip = ToolTip(
+    line_weight_label, "Adjust the weight of lines in error calculations. Higher values result in denser line packing."
+)
+scale_tip = ToolTip(
+    scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing."
+)
 grayscale_tip = ToolTip(grayscale_label, "Convert the image to grayscale, using only black lines for drawing.")
 invert_tip = ToolTip(invert_label, "Invert the image before processing. Can improve results for color images.")
 save_mp4_tip = ToolTip(save_mp4_label, "Save the creation process as an MP4 video file.")
