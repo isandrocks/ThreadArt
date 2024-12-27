@@ -187,12 +187,13 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             if total_score > max_score or (total_score == max_score and random.random() > 0.5):
                 current_pincords = [(pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE), (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE)]
                 if current_pincords in last_pincords or test_pin == op_pin:
-                    op_pin_count += 1
-                    last_p_count += 1
-                    if op_pin_count > (N_PINS / 8) or last_p_count > 3:
-                        print("Breaking early due to stagnation. Repeating pin cords")
-                        break_outer_loop = True  # Set the flag to break out of the outer loop
-                        break
+                    if l > 2000:
+                        op_pin_count += 1
+                        last_p_count += 1
+                        if op_pin_count > (N_PINS / 6) or last_p_count > 3:
+                            print("Breaking early due to stagnation. Repeating pin cords")
+                            break_outer_loop = True  # Set the flag to break out of the outer loop
+                            break
                 else:
                     last_p_count = 0
 
