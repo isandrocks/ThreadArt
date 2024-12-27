@@ -19,9 +19,9 @@ LINE_WEIGHT = 30
 SCALE = 4
 INVERT = False
 FILE_PATH = ""
-GRAYSCALE = True
-SAVE_MP4 = True
-SAVE_JSON = True
+GRAYSCALE = False
+SAVE_MP4 = False
+SAVE_JSON = False
 
 # Tkinter root window
 root = tk.Tk()
