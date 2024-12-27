@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import threading
 import queue
-from moviepy import ImageSequenceClip
+from moviepy.editor import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
 
