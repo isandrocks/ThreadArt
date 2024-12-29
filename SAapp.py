@@ -8,10 +8,8 @@ import time
 import tkinter as tk
 from tkinter import filedialog
 import random
-from scipy.ndimage import gaussian_filter
 
-
-def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
+def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, dwg=None):
     assert img.shape[0] == img.shape[1]
     length = img.shape[0]
 
@@ -97,6 +95,10 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         return (pin + N_PINS // 2) % N_PINS
 
     # Initialize variables for the calculation loop
+    if dwg is not None:
+        path = dwg.path(d="M {} {}".format(*pin_coords[0]), stroke="black", fill="none", stroke_width="0.15px")
+    else:
+        path = []
     img_result = np.ones(img.shape) * 0xFF
     result = Image.new("L", (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
     draw = ImageDraw.Draw(result)
@@ -123,7 +125,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         # check for differance between the original image and the current image
         if l % 100 == 0:
             opc_error.append(op_pin_count)
-            if sum(opc_error) >= (N_PINS / 2):
+            if sum(opc_error) >= (N_PINS / 3):
                 print("Breaking early due to cross center stagnation.")
                 break
             op_pin_count = 0
@@ -192,7 +194,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
                     (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
                 ]
                 if current_pincords in last_pincords or test_pin == op_pin:
-                    if l > 2000:
+                    if l > 1000:
                         op_pin_count += 1
                         last_p_count += 1
                         if op_pin_count > (N_PINS / 8) or last_p_count > 4:
@@ -208,13 +210,16 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
 
         xs = line_cache_x[best_pin * N_PINS + pin]
         ys = line_cache_y[best_pin * N_PINS + pin]
-        weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
+        weight = line_cache_weight[best_pin * N_PINS + pin] * LINE_WEIGHT
 
         line_mask.fill(0)
         line_mask[ys, xs] = weight
 
         error -= line_mask
         error.clip(0, 255)
+
+        if dwg is not None:
+            path.push("L {} {}".format(pin_coords[best_pin][0]*2, pin_coords[best_pin][1]*2))
 
         # image data
         draw.line(
@@ -238,7 +243,7 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         pin_sequence.append(best_pin)
         pin = best_pin
 
-    return pin_sequence, result, line_number, current_absdiff, frames
+    return pin_sequence, result, line_number, current_absdiff, frames, path
 
 
 def main():
@@ -302,7 +307,7 @@ def main():
 
     img = np.array(img)
 
-    pin_sequence, result, line_number, current_absdiff, frames = string_art(
+    pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
         N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
     )
 

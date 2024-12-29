@@ -9,19 +9,21 @@ import queue
 from moviepy import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
+import svgwrite
 
 # Default settings
 SET_LINES = 0
 N_PINS = 36 * 8
-MIN_LOOP = 5
-MIN_DISTANCE = 5
+MIN_LOOP = 15
+MIN_DISTANCE = 15
 LINE_WEIGHT = 25
-SCALE = 7
+SCALE = 2
 INVERT = False
 FILE_PATH = ""
 GRAYSCALE = True
 SAVE_MP4 = False
 SAVE_JSON = False
+SAVE_SVG = True
 
 # Tkinter root window
 root = tk.Tk()
@@ -32,6 +34,7 @@ invert_var = tk.BooleanVar(value=INVERT)
 grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 mp4_var = tk.BooleanVar(value=SAVE_MP4)
 json_var = tk.BooleanVar(value=SAVE_JSON)
+svg_var = tk.BooleanVar(value=SAVE_SVG)
 
 output_dir = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(output_dir, exist_ok=True)
@@ -101,7 +104,7 @@ def find_time(seconds):
 
 
 def update_settings():
-    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_JSON
+    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_JSON, SAVE_SVG
     SET_LINES = int(set_lines_entry.get())
     N_PINS = int(n_pins_entry.get())
     MIN_LOOP = int(min_loop_slider.get())
@@ -113,6 +116,7 @@ def update_settings():
     GRAYSCALE = grayscale_var.get()
     SAVE_MP4 = mp4_var.get()
     SAVE_JSON = json_var.get()
+    SAVE_SVG = svg_var.get()
 
 
 def run_code():
@@ -240,13 +244,23 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     # Convert image to grayscale
     img_gray = img.convert("L")
     img_gray = ImageOps.grayscale(img_gray)
-    gray_channel = np.array(img_gray)
+    gray_channel = np.array(gray_channel)
+    dwg = False
+
+
+    if SAVE_SVG:
+        svg_filename = f"{output_path}_LW_{LINE_WEIGHT}_out.svg"
+        dwg = svgwrite.Drawing(svg_filename, size=(1024, 1024))
 
     with contextlib.redirect_stdout(StdoutRedirector(output_text)):
         print("Processing grayscale channel...")
-        pin_sequence, result, line_number, current_absdiff, frames = string_art(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel
+        pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel, dwg
         )
+
+    if SAVE_SVG:
+        dwg.add(path)
+        dwg.save()
 
     result_img = Image.fromarray(np.array(result))
 
@@ -334,7 +348,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
             gs_img = ImageOps.invert(gs_img)
             channel_img = np.array(gs_img)
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-            pin_sequence, result, line_number, current_absdiff, frames = string_art(
+            pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
                 N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img
             )
         results.append(np.array(result))  # Ensure result is a numpy array
@@ -467,6 +481,7 @@ padding_options = {"padx": 10, "pady": 5, "sticky": "w"}
 
 root.configure(bg=TK_BG)
 
+# SET_LINES
 set_lines_label = tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG)
 set_lines_label.grid(row=0, column=0, **padding_options)
 
@@ -474,6 +489,7 @@ set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 set_lines_entry.insert(0, SET_LINES)
 set_lines_entry.grid(row=0, column=1, **padding_options)
 
+# N_PINS
 n_pins_label = tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG)
 n_pins_label.grid(row=0, column=2, **padding_options)
 
@@ -481,6 +497,7 @@ n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 n_pins_entry.insert(0, N_PINS)
 n_pins_entry.grid(row=0, column=3, **padding_options)
 
+# MIN_LOOP
 min_loop_label = tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG)
 min_loop_label.grid(row=2, column=0, **padding_options)
 
@@ -494,6 +511,7 @@ min_loop_entry.insert(0, MIN_LOOP)
 min_loop_entry.grid(row=2, column=1, **padding_options)
 min_loop_entry.bind("<KeyRelease>", sync_min_loop_slider)
 
+# MIN_DISTANCE
 min_distance_label = tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG)
 min_distance_label.grid(row=3, column=0, **padding_options)
 
@@ -507,10 +525,11 @@ min_distance_entry.insert(0, MIN_DISTANCE)
 min_distance_entry.grid(row=3, column=1, **padding_options)
 min_distance_entry.bind("<KeyRelease>", sync_min_distance_slider)
 
+# LINE_WEIGHT
 line_weight_label = tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG)
 line_weight_label.grid(row=4, column=0, **padding_options)
 
-line_weight_slider = tk.Scale(root, from_=1, to=80, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_slider = tk.Scale(root, from_=1, to=50, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 line_weight_slider.set(LINE_WEIGHT)
 line_weight_slider.grid(row=4, column=2)
 line_weight_slider.bind("<Motion>", sync_line_weight_entry)
@@ -520,6 +539,7 @@ line_weight_entry.insert(0, LINE_WEIGHT)
 line_weight_entry.grid(row=4, column=1, **padding_options)
 line_weight_entry.bind("<KeyRelease>", sync_line_weight_slider)
 
+# SCALE
 scale_label = tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG)
 scale_label.grid(row=5, column=0, **padding_options)
 
@@ -533,30 +553,35 @@ scale_entry.insert(0, SCALE)
 scale_entry.grid(row=5, column=1, **padding_options)
 scale_entry.bind("<KeyRelease>", sync_scale_slider)
 
+# GRAYSCALE
 grayscale_label = tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG)
 grayscale_label.grid(row=6, column=0, **padding_options)
 
 grayscale_check = tk.Checkbutton(root, variable=grayscale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 grayscale_check.grid(row=6, column=1, **padding_options)
 
+# INVERT
 invert_label = tk.Label(root, text="INVERT", bg=TK_BG, fg=TK_FG)
 invert_label.grid(row=7, column=0, **padding_options)
 
 invert_check = tk.Checkbutton(root, variable=invert_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 invert_check.grid(row=7, column=1, **padding_options)
 
+# SAVE_MP4
 save_mp4_label = tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG)
 save_mp4_label.grid(row=6, column=2, **padding_options)
 
 save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_mp4_check.grid(row=6, column=3, **padding_options)
 
+# SAVE_JSON
 save_json_label = tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG)
 save_json_label.grid(row=7, column=2, **padding_options)
 
 save_json_check = tk.Checkbutton(root, variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_json_check.grid(row=7, column=3, **padding_options)
 
+# FILE_PATH
 file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
 file_path_label.grid(row=8, column=0, **padding_options)
 
@@ -566,6 +591,7 @@ file_path_entry.grid(row=8, column=1, columnspan=2, **padding_options)
 
 tk.Button(root, text="Browse", command=select_file, bg=TK_SEL_BG, fg=TK_FG).grid(row=8, columnspan=99)
 
+# RUN CODE
 tk.Button(root, text="Run Code", command=run_code, bg=TK_SEL_BG, fg=TK_FG).grid(row=9, columnspan=99)
 
 # display the image
@@ -590,7 +616,7 @@ n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be
 min_loop_tip = ToolTip(min_loop_label, "Set the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
 line_weight_tip = ToolTip(
-    line_weight_label, "Set the weight of lines in error calculations. Higher values result in denser line packing."
+    line_weight_label, "Set the weight of lines in error calculations."
 )
 scale_tip = ToolTip(
     scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing."
