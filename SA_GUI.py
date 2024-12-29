@@ -244,7 +244,7 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     # Convert image to grayscale
     img_gray = img.convert("L")
     img_gray = ImageOps.grayscale(img_gray)
-    gray_channel = np.array(gray_channel)
+    gray_channel = np.array(img_gray)
     dwg = False
 
 
