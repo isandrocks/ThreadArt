@@ -247,7 +247,6 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     gray_channel = np.array(img_gray)
     dwg = False
 
-
     if SAVE_SVG:
         svg_filename = f"{output_path}_LW_{LINE_WEIGHT}_out.svg"
         dwg = svgwrite.Drawing(svg_filename, size=(1024, 1024))
@@ -472,6 +471,46 @@ def update_label_text(event):
     pbar_label.config(text=root.title())
 
 
+def increase_line_weight():
+    line_weight_slider.set(line_weight_slider.get() + 1)
+    sync_line_weight_entry(None)
+
+
+def decrease_line_weight():
+    line_weight_slider.set(line_weight_slider.get() - 1)
+    sync_line_weight_entry(None)
+
+
+def increase_min_loop():
+    min_loop_slider.set(min_loop_slider.get() + 1)
+    sync_min_loop_entry(None)
+
+
+def decrease_min_loop():
+    min_loop_slider.set(min_loop_slider.get() - 1)
+    sync_min_loop_entry(None)
+
+
+def increase_min_distance():
+    min_distance_slider.set(min_distance_slider.get() + 1)
+    sync_min_distance_entry(None)
+
+
+def decrease_min_distance():
+    min_distance_slider.set(min_distance_slider.get() - 1)
+    sync_min_distance_entry(None)
+
+
+def increase_scale():
+    scale_slider.set(scale_slider.get() + 1)
+    sync_scale_entry(None)
+
+
+def decrease_scale():
+    scale_slider.set(scale_slider.get() - 1)
+    sync_scale_entry(None)
+
+
 # Tkinter window colors and theme
 TK_BG = "#272727"
 TK_FG = "#d1d1d1"
@@ -495,7 +534,7 @@ n_pins_label.grid(row=0, column=2, **padding_options)
 
 n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 n_pins_entry.insert(0, N_PINS)
-n_pins_entry.grid(row=0, column=3, **padding_options)
+n_pins_entry.grid(row=0, column=2, sticky="e")
 
 # MIN_LOOP
 min_loop_label = tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG)
@@ -511,6 +550,12 @@ min_loop_entry.insert(0, MIN_LOOP)
 min_loop_entry.grid(row=2, column=1, **padding_options)
 min_loop_entry.bind("<KeyRelease>", sync_min_loop_slider)
 
+min_loop_increase_button = tk.Button(root, text="+1", command=increase_min_loop, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_increase_button.grid(row=2, column=4, **padding_options)
+
+min_loop_decrease_button = tk.Button(root, text="-1", command=decrease_min_loop, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_decrease_button.grid(row=2, column=3, sticky="e")
+
 # MIN_DISTANCE
 min_distance_label = tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG)
 min_distance_label.grid(row=3, column=0, **padding_options)
@@ -525,11 +570,17 @@ min_distance_entry.insert(0, MIN_DISTANCE)
 min_distance_entry.grid(row=3, column=1, **padding_options)
 min_distance_entry.bind("<KeyRelease>", sync_min_distance_slider)
 
+min_distance_increase_button = tk.Button(root, text="+1", command=increase_min_distance, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_increase_button.grid(row=3, column=4, **padding_options)
+
+min_distance_decrease_button = tk.Button(root, text="-1", command=decrease_min_distance, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_decrease_button.grid(row=3, column=3, sticky="e")
+
 # LINE_WEIGHT
 line_weight_label = tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG)
 line_weight_label.grid(row=4, column=0, **padding_options)
 
-line_weight_slider = tk.Scale(root, from_=1, to=50, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_slider = tk.Scale(root, from_=1, to=100, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 line_weight_slider.set(LINE_WEIGHT)
 line_weight_slider.grid(row=4, column=2)
 line_weight_slider.bind("<Motion>", sync_line_weight_entry)
@@ -538,6 +589,12 @@ line_weight_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 line_weight_entry.insert(0, LINE_WEIGHT)
 line_weight_entry.grid(row=4, column=1, **padding_options)
 line_weight_entry.bind("<KeyRelease>", sync_line_weight_slider)
+
+line_weight_increase_button = tk.Button(root, text="+1", command=increase_line_weight, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_increase_button.grid(row=4, column=4, **padding_options)
+
+line_weight_decrease_button = tk.Button(root, text="-1", command=decrease_line_weight, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_decrease_button.grid(row=4, column=3, sticky="e")
 
 # SCALE
 scale_label = tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG)
@@ -552,6 +609,12 @@ scale_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=3)
 scale_entry.insert(0, SCALE)
 scale_entry.grid(row=5, column=1, **padding_options)
 scale_entry.bind("<KeyRelease>", sync_scale_slider)
+
+scale_increase_button = tk.Button(root, text="+1", command=increase_scale, bg=TK_SEL_BG, fg=TK_FG)
+scale_increase_button.grid(row=5, column=4, **padding_options)
+
+scale_decrease_button = tk.Button(root, text="-1", command=decrease_scale, bg=TK_SEL_BG, fg=TK_FG)
+scale_decrease_button.grid(row=5, column=3, sticky="e")
 
 # GRAYSCALE
 grayscale_label = tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG)
@@ -572,14 +635,14 @@ save_mp4_label = tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG)
 save_mp4_label.grid(row=6, column=2, **padding_options)
 
 save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
-save_mp4_check.grid(row=6, column=3, **padding_options)
+save_mp4_check.grid(row=6, column=2, sticky="e")
 
 # SAVE_JSON
 save_json_label = tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG)
 save_json_label.grid(row=7, column=2, **padding_options)
 
 save_json_check = tk.Checkbutton(root, variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
-save_json_check.grid(row=7, column=3, **padding_options)
+save_json_check.grid(row=7, column=2, sticky="e")
 
 # FILE_PATH
 file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
@@ -615,11 +678,9 @@ set_lines_tip = ToolTip(set_lines_label, "Set the number of lines to draw. Set t
 n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be a multiple of 36.")
 min_loop_tip = ToolTip(min_loop_label, "Set the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
-line_weight_tip = ToolTip(
-    line_weight_label, "Set the weight of lines in error calculations."
-)
+line_weight_tip = ToolTip(line_weight_label, "Set the px weight of lines in error calculations.")
 scale_tip = ToolTip(
-    scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing."
+    scale_label, "Set the scale factor to make lines thinner in the visualization. Higher values improve clarity but slow down processing for color img's and videos."
 )
 grayscale_tip = ToolTip(grayscale_label, "Convert the image to grayscale, using only black lines for drawing.")
 invert_tip = ToolTip(invert_label, "Invert the image before processing. Can improve results for color images.")
