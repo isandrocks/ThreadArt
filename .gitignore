@@ -1,4 +1,6 @@
 /test img's/*
+/.vscode
+/test img's
 /__pycache__
 /.venv
 /output
@@ -7,3 +9,7 @@ cache.pkl
 /old
 test.py
 pyproject.toml
+rebuilt_img.png
+post_error.png
+pre_error.png
+rebuilt_img.jpg
