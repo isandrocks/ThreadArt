@@ -16,7 +16,7 @@ SET_LINES = 0
 N_PINS = 36 * 8
 MIN_LOOP = 15
 MIN_DISTANCE = 15
-LINE_WEIGHT = 25
+LINE_WEIGHT = 17
 SCALE = 2
 INVERT = False
 FILE_PATH = ""
@@ -395,6 +395,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
                         if loop_ips is not None:
                             loop_ips = round(loop_ips * 100)
                             loop_ips = loop_ips / 100
+                            loop_frame = frame_idx + 1
                         else:
                             loop_ips = 1
 
@@ -403,14 +404,14 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
                     current_minutes, current_seconds = find_time(current_eta)
 
                     eta_label.config(
-                        text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
+                        text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {loop_frame}/{len(frames)}"
                     )
                     pbar.update(1)
                     root.update_idletasks()
 
     if SAVE_MP4:
         # Save the frames as an MP4 video
-        clip = ImageSequenceClip([np.array(frame) for frame in video_frames], fps=((sum(total_lines) / 17) / 4))
+        clip = ImageSequenceClip([np.array(frame) for frame in video_frames], fps=((sum(total_lines) / 17) / 2))
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
             clip.write_videofile((output_path + "CMYK_output.mp4"), codec="libx264")
 
