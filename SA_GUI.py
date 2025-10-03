@@ -375,6 +375,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
             progress_bar["maximum"] = len(frames)
             root.update_idletasks()
             loop_ips = 1
+            loop_frame = 0
 
             with tqdm(total=(len(frames))) as pbar:
                 for frame_idx, frame_data in enumerate(frames):
