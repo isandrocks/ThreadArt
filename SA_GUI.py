@@ -10,19 +10,31 @@ import queue
 from moviepy import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
+<<<<<<< HEAD
 from skimage.filters import sobel
+=======
+import svgwrite
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 # Default settings
 SET_LINES = 0
 N_PINS = 36 * 8
+<<<<<<< HEAD
 MIN_LOOP = 5
 MIN_DISTANCE = 5
 LINE_WEIGHT = 25
 SCALE = 4
+=======
+MIN_LOOP = 15
+MIN_DISTANCE = 15
+LINE_WEIGHT = 17
+SCALE = 2
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 INVERT = False
 FILE_PATH = ""
 GRAYSCALE = True
 SAVE_MP4 = False
+<<<<<<< HEAD
 SAVE_CSV = False
 DQN_MODE = False
 TRAINING_EPISODES = 15
@@ -30,6 +42,10 @@ AUTO_LW = True
 SSIM_TARGET = 0.65
 PREPROCESS = True
 MULTI_SCALE = False
+=======
+SAVE_JSON = False
+SAVE_SVG = True
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 # Tkinter root window
 root = tk.Tk()
@@ -39,11 +55,16 @@ root.geometry("+0+0")
 invert_var = tk.BooleanVar(value=INVERT)
 grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 mp4_var = tk.BooleanVar(value=SAVE_MP4)
+<<<<<<< HEAD
 csv_var = tk.BooleanVar(value=SAVE_CSV)
 dqn_var = tk.BooleanVar(value=DQN_MODE)
 auto_lw_var = tk.BooleanVar(value=AUTO_LW)
 preprocess_var = tk.BooleanVar(value=PREPROCESS)
 multi_scale_var = tk.BooleanVar(value=MULTI_SCALE)
+=======
+json_var = tk.BooleanVar(value=SAVE_JSON)
+svg_var = tk.BooleanVar(value=SAVE_SVG)
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 output_dir = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(output_dir, exist_ok=True)
@@ -137,8 +158,12 @@ def auto_line_weight(img_array, scale=4):
 
 
 def update_settings():
+<<<<<<< HEAD
     global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_CSV, DQN_MODE, TRAINING_EPISODES, AUTO_LW
     global SSIM_TARGET, PREPROCESS, MULTI_SCALE
+=======
+    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_JSON, SAVE_SVG
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
     SET_LINES = int(set_lines_entry.get())
     N_PINS = int(n_pins_slider.get())
     MIN_LOOP = int(min_loop_slider.get())
@@ -149,6 +174,7 @@ def update_settings():
     FILE_PATH = file_path_entry.get()
     GRAYSCALE = grayscale_var.get()
     SAVE_MP4 = mp4_var.get()
+<<<<<<< HEAD
     SAVE_CSV = csv_var.get()
     DQN_MODE = dqn_var.get()
     TRAINING_EPISODES = int(training_episodes_entry.get())
@@ -156,6 +182,10 @@ def update_settings():
     SSIM_TARGET = float(ssim_target_slider.get())
     PREPROCESS = preprocess_var.get()
     MULTI_SCALE = multi_scale_var.get()
+=======
+    SAVE_JSON = json_var.get()
+    SAVE_SVG = svg_var.get()
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 
 def run_code():
@@ -304,6 +334,7 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     img_gray = img.convert("L")
     img_gray = ImageOps.grayscale(img_gray)
     gray_channel = np.array(img_gray)
+<<<<<<< HEAD
     
     edge_map = sobel(gray_channel.astype(np.float64))
     if edge_map.max() > 0:
@@ -342,6 +373,23 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
                     edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
                     no_stagnation=(SET_LINES != 0)
                 )
+=======
+    dwg = False
+
+    if SAVE_SVG:
+        svg_filename = f"{output_path}_LW_{LINE_WEIGHT}_out.svg"
+        dwg = svgwrite.Drawing(svg_filename, size=(1024, 1024))
+
+    with contextlib.redirect_stdout(StdoutRedirector(output_text)):
+        print("Processing grayscale channel...")
+        pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel, dwg
+        )
+>>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
+
+    if SAVE_SVG:
+        dwg.add(path)
+        dwg.save()
 
     result_img = Image.fromarray(np.array(result))
 
@@ -519,6 +567,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
                         if loop_ips is not None:
                             loop_ips = round(loop_ips * 100)
                             loop_ips = loop_ips / 100
+                            loop_frame = frame_idx + 1
                         else:
                             loop_ips = 1
 
@@ -527,7 +576,7 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
                     current_minutes, current_seconds = find_time(current_eta)
 
                     eta_label.config(
-                        text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {frame_idx + 1}/{len(frames)}"
+                        text=f"ETA: {current_minutes:02}:{current_seconds:02} | FPS: {loop_ips} | Frame: {loop_frame}/{len(frames)}"
                     )
                     pbar.update(1)
                     root.update_idletasks()
@@ -601,6 +650,46 @@ def update_label_text(event):
     pbar_label.config(text=root.title())
 
 
+def increase_line_weight():
+    line_weight_slider.set(line_weight_slider.get() + 1)
+    sync_line_weight_entry(None)
+
+
+def decrease_line_weight():
+    line_weight_slider.set(line_weight_slider.get() - 1)
+    sync_line_weight_entry(None)
+
+
+def increase_min_loop():
+    min_loop_slider.set(min_loop_slider.get() + 1)
+    sync_min_loop_entry(None)
+
+
+def decrease_min_loop():
+    min_loop_slider.set(min_loop_slider.get() - 1)
+    sync_min_loop_entry(None)
+
+
+def increase_min_distance():
+    min_distance_slider.set(min_distance_slider.get() + 1)
+    sync_min_distance_entry(None)
+
+
+def decrease_min_distance():
+    min_distance_slider.set(min_distance_slider.get() - 1)
+    sync_min_distance_entry(None)
+
+
+def increase_scale():
+    scale_slider.set(scale_slider.get() + 1)
+    sync_scale_entry(None)
+
+
+def decrease_scale():
+    scale_slider.set(scale_slider.get() - 1)
+    sync_scale_entry(None)
+
+
 # Tkinter window colors and theme
 TK_BG = "#272727"
 TK_FG = "#d1d1d1"
@@ -610,6 +699,7 @@ padding_options = {"padx": 10, "pady": 5, "sticky": "w"}
 
 root.configure(bg=TK_BG)
 
+# SET_LINES
 set_lines_label = tk.Label(root, text="SET_LINES", bg=TK_BG, fg=TK_FG)
 set_lines_label.grid(row=0, column=0, **padding_options)
 
@@ -617,6 +707,7 @@ set_lines_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
 set_lines_entry.insert(0, SET_LINES)
 set_lines_entry.grid(row=0, column=1, **padding_options)
 
+# N_PINS
 n_pins_label = tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG)
 n_pins_label.grid(row=0, column=2, **padding_options)
 
@@ -627,6 +718,7 @@ n_pins_slider = tk.Scale(
 n_pins_slider.set(N_PINS)
 n_pins_slider.grid(row=0, column=3, **padding_options)
 
+# MIN_LOOP
 min_loop_label = tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG)
 min_loop_label.grid(row=2, column=0, **padding_options)
 
@@ -640,6 +732,13 @@ min_loop_entry.insert(0, MIN_LOOP)
 min_loop_entry.grid(row=2, column=1, **padding_options)
 min_loop_entry.bind("<KeyRelease>", sync_min_loop_slider)
 
+min_loop_increase_button = tk.Button(root, text="+1", command=increase_min_loop, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_increase_button.grid(row=2, column=4, **padding_options)
+
+min_loop_decrease_button = tk.Button(root, text="-1", command=decrease_min_loop, bg=TK_SEL_BG, fg=TK_FG)
+min_loop_decrease_button.grid(row=2, column=3, sticky="e")
+
+# MIN_DISTANCE
 min_distance_label = tk.Label(root, text="MIN_DISTANCE", bg=TK_BG, fg=TK_FG)
 min_distance_label.grid(row=3, column=0, **padding_options)
 
@@ -653,10 +752,17 @@ min_distance_entry.insert(0, MIN_DISTANCE)
 min_distance_entry.grid(row=3, column=1, **padding_options)
 min_distance_entry.bind("<KeyRelease>", sync_min_distance_slider)
 
+min_distance_increase_button = tk.Button(root, text="+1", command=increase_min_distance, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_increase_button.grid(row=3, column=4, **padding_options)
+
+min_distance_decrease_button = tk.Button(root, text="-1", command=decrease_min_distance, bg=TK_SEL_BG, fg=TK_FG)
+min_distance_decrease_button.grid(row=3, column=3, sticky="e")
+
+# LINE_WEIGHT
 line_weight_label = tk.Label(root, text="LINE_WEIGHT", bg=TK_BG, fg=TK_FG)
 line_weight_label.grid(row=4, column=0, **padding_options)
 
-line_weight_slider = tk.Scale(root, from_=1, to=80, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+line_weight_slider = tk.Scale(root, from_=1, to=100, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
 line_weight_slider.set(LINE_WEIGHT)
 line_weight_slider.grid(row=4, column=2)
 line_weight_slider.bind("<Motion>", sync_line_weight_entry)
@@ -685,23 +791,32 @@ scale_entry.insert(0, SCALE)
 scale_entry.grid(row=5, column=1, **padding_options)
 scale_entry.bind("<KeyRelease>", sync_scale_slider)
 
+scale_increase_button = tk.Button(root, text="+1", command=increase_scale, bg=TK_SEL_BG, fg=TK_FG)
+scale_increase_button.grid(row=5, column=4, **padding_options)
+
+scale_decrease_button = tk.Button(root, text="-1", command=decrease_scale, bg=TK_SEL_BG, fg=TK_FG)
+scale_decrease_button.grid(row=5, column=3, sticky="e")
+
+# GRAYSCALE
 grayscale_label = tk.Label(root, text="GRAYSCALE", bg=TK_BG, fg=TK_FG)
 grayscale_label.grid(row=6, column=0, **padding_options)
 
 grayscale_check = tk.Checkbutton(root, variable=grayscale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 grayscale_check.grid(row=6, column=1, **padding_options)
 
+# INVERT
 invert_label = tk.Label(root, text="INVERT", bg=TK_BG, fg=TK_FG)
 invert_label.grid(row=7, column=0, **padding_options)
 
 invert_check = tk.Checkbutton(root, variable=invert_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 invert_check.grid(row=7, column=1, **padding_options)
 
+# SAVE_MP4
 save_mp4_label = tk.Label(root, text="SAVE_MP4", bg=TK_BG, fg=TK_FG)
 save_mp4_label.grid(row=6, column=2, **padding_options)
 
 save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
-save_mp4_check.grid(row=6, column=3, **padding_options)
+save_mp4_check.grid(row=6, column=2, sticky="e")
 
 save_csv_label = tk.Label(root, text="SAVE_CSV", bg=TK_BG, fg=TK_FG)
 save_csv_label.grid(row=7, column=2, **padding_options)
@@ -741,6 +856,7 @@ multi_scale_label.grid(row=10, column=2, **padding_options)
 multi_scale_check = tk.Checkbutton(root, variable=multi_scale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 multi_scale_check.grid(row=10, column=3, **padding_options)
 
+# FILE_PATH
 file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
 file_path_label.grid(row=11, column=0, **padding_options)
 
@@ -773,11 +889,9 @@ set_lines_tip = ToolTip(set_lines_label, "Set the number of lines to draw. Set t
 n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use (multiples of 36).")
 min_loop_tip = ToolTip(min_loop_label, "Set the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
-line_weight_tip = ToolTip(
-    line_weight_label, "Set the weight of lines in error calculations. Higher values result in denser line packing."
-)
+line_weight_tip = ToolTip(line_weight_label, "Set the px weight of lines in error calculations.")
 scale_tip = ToolTip(
-    scale_label, "Set the scale factor for line calculations. Higher values improve accuracy but slow down processing."
+    scale_label, "Set the scale factor to make lines thinner in the visualization. Higher values improve clarity but slow down processing for color img's and videos."
 )
 grayscale_tip = ToolTip(grayscale_label, "Convert the image to grayscale, using only black lines for drawing.")
 invert_tip = ToolTip(invert_label, "Invert the image before processing. Can improve results for color images.")

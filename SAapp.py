@@ -190,6 +190,9 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         error -= line_mask
         np.clip(error, 0, 255, out=error)
 
+        if dwg is not None:
+            path.push("L {} {}".format(pin_coords[best_pin][0] * 2, pin_coords[best_pin][1] * 2))
+
         # image data
         draw.line(
             [
@@ -282,7 +285,7 @@ def main():
 
     img = np.array(img)
 
-    pin_sequence, result, line_number, current_absdiff, frames = string_art(
+    pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
         N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
     )
 
