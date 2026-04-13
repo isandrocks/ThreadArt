@@ -16,3 +16,4 @@ test_ssim_behavior.py
 test_gui_run.py
 test_blur_ssim.py
 GEMINI.md
+/test/

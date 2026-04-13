@@ -484,12 +484,14 @@ def string_art_dqn(
         frames.append(
             [
                 (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
+                
                 (pin_coords[best_pin][0] * SCALE, pin_coords[best_pin][1] * SCALE),
             ]
         )
 
         last_pins.append(best_pin)
         pin_sequence.append(best_pin)
+
         pin = best_pin
 
     # Final absdiff computation

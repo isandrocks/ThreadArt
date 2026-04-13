@@ -10,31 +10,19 @@ import queue
 from moviepy import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
-<<<<<<< HEAD
 from skimage.filters import sobel
-=======
-import svgwrite
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 # Default settings
 SET_LINES = 0
 N_PINS = 36 * 8
-<<<<<<< HEAD
 MIN_LOOP = 5
 MIN_DISTANCE = 5
 LINE_WEIGHT = 25
 SCALE = 4
-=======
-MIN_LOOP = 15
-MIN_DISTANCE = 15
-LINE_WEIGHT = 17
-SCALE = 2
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 INVERT = False
 FILE_PATH = ""
 GRAYSCALE = True
 SAVE_MP4 = False
-<<<<<<< HEAD
 SAVE_CSV = False
 DQN_MODE = False
 TRAINING_EPISODES = 15
@@ -42,10 +30,6 @@ AUTO_LW = True
 SSIM_TARGET = 0.65
 PREPROCESS = True
 MULTI_SCALE = False
-=======
-SAVE_JSON = False
-SAVE_SVG = True
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 # Tkinter root window
 root = tk.Tk()
@@ -55,16 +39,11 @@ root.geometry("+0+0")
 invert_var = tk.BooleanVar(value=INVERT)
 grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 mp4_var = tk.BooleanVar(value=SAVE_MP4)
-<<<<<<< HEAD
 csv_var = tk.BooleanVar(value=SAVE_CSV)
 dqn_var = tk.BooleanVar(value=DQN_MODE)
 auto_lw_var = tk.BooleanVar(value=AUTO_LW)
 preprocess_var = tk.BooleanVar(value=PREPROCESS)
 multi_scale_var = tk.BooleanVar(value=MULTI_SCALE)
-=======
-json_var = tk.BooleanVar(value=SAVE_JSON)
-svg_var = tk.BooleanVar(value=SAVE_SVG)
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 output_dir = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(output_dir, exist_ok=True)
@@ -158,12 +137,8 @@ def auto_line_weight(img_array, scale=4):
 
 
 def update_settings():
-<<<<<<< HEAD
     global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_CSV, DQN_MODE, TRAINING_EPISODES, AUTO_LW
     global SSIM_TARGET, PREPROCESS, MULTI_SCALE
-=======
-    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_JSON, SAVE_SVG
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
     SET_LINES = int(set_lines_entry.get())
     N_PINS = int(n_pins_slider.get())
     MIN_LOOP = int(min_loop_slider.get())
@@ -174,7 +149,6 @@ def update_settings():
     FILE_PATH = file_path_entry.get()
     GRAYSCALE = grayscale_var.get()
     SAVE_MP4 = mp4_var.get()
-<<<<<<< HEAD
     SAVE_CSV = csv_var.get()
     DQN_MODE = dqn_var.get()
     TRAINING_EPISODES = int(training_episodes_entry.get())
@@ -182,10 +156,6 @@ def update_settings():
     SSIM_TARGET = float(ssim_target_slider.get())
     PREPROCESS = preprocess_var.get()
     MULTI_SCALE = multi_scale_var.get()
-=======
-    SAVE_JSON = json_var.get()
-    SAVE_SVG = svg_var.get()
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
 
 def run_code():
@@ -334,7 +304,6 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     img_gray = img.convert("L")
     img_gray = ImageOps.grayscale(img_gray)
     gray_channel = np.array(img_gray)
-<<<<<<< HEAD
     
     edge_map = sobel(gray_channel.astype(np.float64))
     if edge_map.max() > 0:
@@ -373,19 +342,6 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
                     edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
                     no_stagnation=(SET_LINES != 0)
                 )
-=======
-    dwg = False
-
-    if SAVE_SVG:
-        svg_filename = f"{output_path}_LW_{LINE_WEIGHT}_out.svg"
-        dwg = svgwrite.Drawing(svg_filename, size=(1024, 1024))
-
-    with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-        print("Processing grayscale channel...")
-        pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel, dwg
-        )
->>>>>>> 2f5c3f978ea9143a0d420d2d63f13a8f24274cda
 
     if SAVE_SVG:
         dwg.add(path)
