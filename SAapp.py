@@ -14,7 +14,6 @@ from skimage.metrics import structural_similarity as ssim
 def string_art_multiscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, edge_map=None, EDGE_BOOST=2.0, SSIM_TARGET=0.65, no_stagnation=False):
     # Pass 1: Coarse
     coarse_pins = N_PINS // 3
-    
     img_coarse = Image.fromarray(img).resize((128, 128), Image.Resampling.LANCZOS)
     img_coarse_np = np.array(img_coarse)
     
@@ -191,9 +190,6 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         error -= line_mask
         np.clip(error, 0, 255, out=error)
 
-        if dwg is not None:
-            path.push("L {} {}".format(pin_coords[best_pin][0] * 2, pin_coords[best_pin][1] * 2))
-
         # image data
         draw.line(
             [
@@ -286,7 +282,7 @@ def main():
 
     img = np.array(img)
 
-    pin_sequence, result, line_number, current_absdiff, frames, path = string_art(
+    pin_sequence, result, line_number, current_absdiff, frames = string_art(
         N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
     )
 
