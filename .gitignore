@@ -7,3 +7,10 @@ cache.pkl
 /old
 test.py
 pyproject.toml
+.github/prompts/plan-optimizeThreadArtMinLineCount.prompt.md
+test_ssim.py
+test_ssim_params.py
+test_ssim_behavior.py
+test_gui_run.py
+test_blur_ssim.py
+GEMINI.md

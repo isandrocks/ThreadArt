@@ -1,6 +1,7 @@
 from PIL import Image, ImageOps, ImageTk, ImageDraw, ImageChops
 import numpy as np
-from SAapp import string_art
+from SAapp import string_art, string_art_multiscale
+from SA_DQN import string_art_dqn, string_art_dqn_multiscale
 import os
 import tkinter as tk
 from tkinter import filedialog, ttk
@@ -9,6 +10,7 @@ import queue
 from moviepy import ImageSequenceClip
 import contextlib
 from tqdm import tqdm
+from skimage.filters import sobel
 
 # Default settings
 SET_LINES = 0
@@ -16,12 +18,18 @@ N_PINS = 36 * 8
 MIN_LOOP = 5
 MIN_DISTANCE = 5
 LINE_WEIGHT = 25
-SCALE = 7
+SCALE = 4
 INVERT = False
 FILE_PATH = ""
 GRAYSCALE = True
 SAVE_MP4 = False
-SAVE_JSON = False
+SAVE_CSV = False
+DQN_MODE = False
+TRAINING_EPISODES = 15
+AUTO_LW = True
+SSIM_TARGET = 0.65
+PREPROCESS = True
+MULTI_SCALE = False
 
 # Tkinter root window
 root = tk.Tk()
@@ -31,7 +39,11 @@ root.geometry("+0+0")
 invert_var = tk.BooleanVar(value=INVERT)
 grayscale_var = tk.BooleanVar(value=GRAYSCALE)
 mp4_var = tk.BooleanVar(value=SAVE_MP4)
-json_var = tk.BooleanVar(value=SAVE_JSON)
+csv_var = tk.BooleanVar(value=SAVE_CSV)
+dqn_var = tk.BooleanVar(value=DQN_MODE)
+auto_lw_var = tk.BooleanVar(value=AUTO_LW)
+preprocess_var = tk.BooleanVar(value=PREPROCESS)
+multi_scale_var = tk.BooleanVar(value=MULTI_SCALE)
 
 output_dir = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(output_dir, exist_ok=True)
@@ -100,10 +112,35 @@ def find_time(seconds):
     return minutes, seconds
 
 
+def auto_line_weight(img_array, scale=4):
+    """Compute LINE_WEIGHT from image statistics and render scale.
+
+    Targets ~4 passes over an average-error pixel to fully resolve it.
+    Darker images get higher weight, lighter images get lower weight.
+    """
+    length = img_array.shape[0]
+    X, Y = np.ogrid[0:length, 0:length]
+    circle = (X - length / 2) ** 2 + (Y - length / 2) ** 2 <= (length / 2) ** 2
+    error = 255.0 - img_array[circle].astype(np.float64)
+    # Only consider pixels with meaningful error
+    significant = error[error > 10]
+    mean_err = float(significant.mean()) if len(significant) > 0 else float(error.mean())
+    std_err = float(significant.std()) if len(significant) > 0 else float(error.std())
+    # Contrast ratio: high std relative to mean = high contrast image.
+    # Low-contrast images need lower weight to preserve subtle tonal differences.
+    contrast_ratio = std_err / max(mean_err, 1.0)
+    contrast_factor = 0.7 + 0.6 * min(contrast_ratio, 0.5)
+    # Base weight from image content (6-pass target for finer detail)
+    base = mean_err / 6 * contrast_factor
+    weight = int(np.clip(base, 10, 50))
+    return weight
+
+
 def update_settings():
-    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_JSON
+    global SET_LINES, N_PINS, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, INVERT, FILE_PATH, GRAYSCALE, SAVE_MP4, SAVE_CSV, DQN_MODE, TRAINING_EPISODES, AUTO_LW
+    global SSIM_TARGET, PREPROCESS, MULTI_SCALE
     SET_LINES = int(set_lines_entry.get())
-    N_PINS = int(n_pins_entry.get())
+    N_PINS = int(n_pins_slider.get())
     MIN_LOOP = int(min_loop_slider.get())
     MIN_DISTANCE = int(min_distance_slider.get())
     LINE_WEIGHT = int(line_weight_slider.get())
@@ -112,7 +149,13 @@ def update_settings():
     FILE_PATH = file_path_entry.get()
     GRAYSCALE = grayscale_var.get()
     SAVE_MP4 = mp4_var.get()
-    SAVE_JSON = json_var.get()
+    SAVE_CSV = csv_var.get()
+    DQN_MODE = dqn_var.get()
+    TRAINING_EPISODES = int(training_episodes_entry.get())
+    AUTO_LW = auto_lw_var.get()
+    SSIM_TARGET = float(ssim_target_slider.get())
+    PREPROCESS = preprocess_var.get()
+    MULTI_SCALE = multi_scale_var.get()
 
 
 def run_code():
@@ -195,14 +238,34 @@ def run_string_art():
     if INVERT:
         img = ImageOps.invert(img)
 
+    # Stretch the histogram to use the full tonal range for better contrast
+    img = ImageOps.autocontrast(img, cutoff=1)
+
+    if PREPROCESS:
+        from skimage.restoration import denoise_bilateral
+        img_np = np.array(img)
+        filtered = denoise_bilateral(img_np, sigma_spatial=3, sigma_color=0.1, channel_axis=-1)
+        bins = np.linspace(0, 1, 6)
+        digitized = np.digitize(filtered, bins) - 1
+        posterized = (digitized * (255.0 / 4.0)).astype(np.uint8)
+        img = Image.fromarray(posterized)
+
+    # Auto-compute LINE_WEIGHT from image content
+    lw = LINE_WEIGHT
+    if AUTO_LW:
+        gray_for_lw = np.array(ImageOps.grayscale(img))
+        lw = auto_line_weight(gray_for_lw, scale=SCALE)
+        with contextlib.redirect_stdout(StdoutRedirector(output_text)):
+            print(f"Auto LINE_WEIGHT: {lw}")
+
     if GRAYSCALE:
         result, length, current_absdiff = string_art_grayscale(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, lw, SCALE, img
         )
         length = [length]  # Ensure length is a list
     else:
         result, length, current_absdiff = string_art_cmyk(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img
+            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, lw, SCALE, img
         )
 
     print(f"Total lines: {sum(length)}")
@@ -241,12 +304,44 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
     img_gray = img.convert("L")
     img_gray = ImageOps.grayscale(img_gray)
     gray_channel = np.array(img_gray)
+    
+    edge_map = sobel(gray_channel.astype(np.float64))
+    if edge_map.max() > 0:
+        edge_map /= edge_map.max()
 
     with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-        print("Processing grayscale channel...")
-        pin_sequence, result, line_number, current_absdiff, frames = string_art(
-            N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel
-        )
+        if MULTI_SCALE:
+            if DQN_MODE:
+                print("Processing grayscale channel (DQN Multi-Scale)...")
+                pin_sequence, result, line_number, current_absdiff, frames = string_art_dqn_multiscale(
+                    N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel,
+                    edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                    training_episodes=TRAINING_EPISODES,
+                    no_stagnation=(SET_LINES != 0)
+                )
+            else:
+                print("Processing grayscale channel (Multi-Scale)...")
+                pin_sequence, result, line_number, current_absdiff, frames = string_art_multiscale(
+                    N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel,
+                    edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                    no_stagnation=(SET_LINES != 0)
+                )
+        else:
+            if DQN_MODE:
+                print("Processing grayscale channel (DQN mode)...")
+                pin_sequence, result, line_number, current_absdiff, frames = string_art_dqn(
+                    N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel,
+                    edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                    training_episodes=TRAINING_EPISODES,
+                    no_stagnation=(SET_LINES != 0)
+                )
+            else:
+                print("Processing grayscale channel...")
+                pin_sequence, result, line_number, current_absdiff, frames = string_art(
+                    N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, gray_channel,
+                    edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                    no_stagnation=(SET_LINES != 0)
+                )
 
     result_img = Image.fromarray(np.array(result))
 
@@ -301,9 +396,13 @@ def string_art_grayscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT,
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
             clip.write_videofile((output_path + "_grayscale_output.mp4"), codec="libx264")
 
-    if SAVE_JSON:
-        with open((output_path + ".json"), "w") as f:
-            f.write(str(pin_sequence))
+    if SAVE_CSV:
+        import csv
+        with open((output_path + ".csv"), "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["pin"])
+            for pin in pin_sequence:
+                writer.writerow([pin])
 
     return result_img, line_number, current_absdiff
 
@@ -318,9 +417,9 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
     total_lines = []  # To store line counts for each channel
     diffs = []  # To store errors for each channel
     frame_data = []  # To store frame data for each channel
-    frame = Image.new("CMYK", (img.size[0] * SCALE, img.size[1] * SCALE), (0, 0, 0, 0))
-    trasparent_frame = Image.new("CMYK", (img.size[0] * SCALE, img.size[1] * SCALE), (0, 0, 0, 0))
+    frame_np = np.zeros((img.size[1] * SCALE, img.size[0] * SCALE, 4), dtype=np.int16)
     video_frames = []
+    SNAPSHOT_EVERY = 4  # only snapshot every Nth line for the video
 
     # Process each channel
     for channel_idx, channel_img in enumerate(cmyk_channels):
@@ -333,47 +432,85 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
             gs_img = img_cmyk.convert("L")
             gs_img = ImageOps.invert(gs_img)
             channel_img = np.array(gs_img)
+        
+        edge_map = sobel(channel_img.astype(np.float64))
+        if edge_map.max() > 0:
+            edge_map /= edge_map.max()
+
+        # Per-channel auto LINE_WEIGHT
+        channel_lw = LINE_WEIGHT
+        if AUTO_LW:
+            channel_lw = auto_line_weight(channel_img, scale=SCALE)
+            print(f"  Auto LINE_WEIGHT for {channel_name}: {channel_lw}")
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-            pin_sequence, result, line_number, current_absdiff, frames = string_art(
-                N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, channel_img
-            )
+            if MULTI_SCALE:
+                if DQN_MODE:
+                    pin_sequence, result, line_number, current_absdiff, frames = string_art_dqn_multiscale(
+                        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, channel_lw, SCALE, channel_img,
+                        edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                        training_episodes=TRAINING_EPISODES,
+                        no_stagnation=(SET_LINES != 0)
+                    )
+                else:
+                    pin_sequence, result, line_number, current_absdiff, frames = string_art_multiscale(
+                        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, channel_lw, SCALE, channel_img,
+                        edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                        no_stagnation=(SET_LINES != 0)
+                    )
+            else:
+                if DQN_MODE:
+                    pin_sequence, result, line_number, current_absdiff, frames = string_art_dqn(
+                        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, channel_lw, SCALE, channel_img,
+                        edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                        training_episodes=TRAINING_EPISODES,
+                        no_stagnation=(SET_LINES != 0)
+                    )
+                else:
+                    pin_sequence, result, line_number, current_absdiff, frames = string_art(
+                        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, channel_lw, SCALE, channel_img,
+                        edge_map=edge_map, SSIM_TARGET=SSIM_TARGET,
+                        no_stagnation=(SET_LINES != 0)
+                    )
         results.append(np.array(result))  # Ensure result is a numpy array
         total_lines.append(line_number)
         diffs.append(current_absdiff)
         frame_data.append(frames)
 
         if SAVE_MP4:
-            idx_color = [(100, 0, 0, 0), (0, 100, 0, 0), (0, 0, 100, 0), (0, 0, 0, 100)][channel_idx]
-
-            def reconstruct_frame(lines, frame):
-                draw_frame = trasparent_frame.copy()
-                draw = ImageDraw.Draw(draw_frame)
-                draw.line(lines, fill=idx_color, width=1)
-                if channel_name == "Black":
-                    frame = ImageChops.subtract(frame, draw_frame)
-                else:
-                    frame = ImageChops.add(frame, draw_frame)
-                del draw
-                return frame
+            ink = np.array([(120, 0, 0, 0), (0, 120, 0, 0), (0, 0, 120, 0), (0, 0, 0, 120)][channel_idx], dtype=np.int16)
+            subtract = channel_name == "Black"
+            frame_h, frame_w = frame_np.shape[:2]
 
             pbar_label.config(text=f"{channel_name} channel reconstruction...")
             progress_bar["value"] = 0
-            tk_pbar = progress_bar["value"]
+            tk_pbar = 0
             progress_bar["maximum"] = len(frames)
             root.update_idletasks()
             loop_ips = 1
 
-            with tqdm(total=(len(frames))) as pbar:
-                for frame_idx, frame_data in enumerate(frames):
-                    video_frame = reconstruct_frame(frame_data, frame)
-                    frame = video_frame
-                    resized_frame = video_frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
-                    if not INVERT:
-                        resized_frame = ImageOps.invert(resized_frame)
-                    video_frames.append(resized_frame)
+            with tqdm(total=len(frames)) as pbar:
+                for frame_idx, line_data in enumerate(frames):
+                    # Draw line directly into numpy accumulator
+                    (x0, y0), (x1, y1) = line_data
+                    d = max(abs(x1 - x0), abs(y1 - y0), 1)
+                    xs = np.linspace(x0, x1, d, dtype=int)
+                    ys = np.linspace(y0, y1, d, dtype=int)
+                    valid = (xs >= 0) & (xs < frame_w) & (ys >= 0) & (ys < frame_h)
+                    if subtract:
+                        frame_np[ys[valid], xs[valid]] -= ink
+                    else:
+                        frame_np[ys[valid], xs[valid]] += ink
 
-                    # stats update
-                    tk_pbar = tk_pbar + 1
+                    # Only snapshot every Nth frame for the video
+                    if frame_idx % SNAPSHOT_EVERY == 0 or frame_idx == len(frames) - 1:
+                        clipped = np.clip(frame_np, 0, 255).astype(np.uint8)
+                        pil_frame = Image.fromarray(clipped, mode="CMYK")
+                        resized_frame = pil_frame.resize((512, 512), Image.Resampling.BOX).convert("RGB")
+                        if not INVERT:
+                            resized_frame = ImageOps.invert(resized_frame)
+                        video_frames.append(resized_frame)
+
+                    tk_pbar += 1
                     progress_bar["value"] = tk_pbar
                     pbar_dict = pbar.format_dict
                     loop_time = round(pbar_dict["elapsed"])
@@ -397,13 +534,19 @@ def string_art_cmyk(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCAL
 
     if SAVE_MP4:
         # Save the frames as an MP4 video
-        clip = ImageSequenceClip([np.array(frame) for frame in video_frames], fps=((sum(total_lines) / 17) / 4))
+        target_duration = 68  # ~17 seconds per channel
+        clip_fps = max(1, len(video_frames) / target_duration)
+        clip = ImageSequenceClip([np.array(f) for f in video_frames], fps=clip_fps)
         with contextlib.redirect_stdout(StdoutRedirector(output_text)):
-            clip.write_videofile((output_path + "CMYK_output.mp4"), codec="libx264")
+            clip.write_videofile((output_path + f"_S_{SCALE}_LW_{LINE_WEIGHT}_CMYK_output.mp4"), codec="libx264")
 
-    if SAVE_JSON:
-        with open((output_path + "_CMKY.json"), "w") as f:
-            f.write(str(pin_sequence))
+    if SAVE_CSV:
+        import csv
+        with open((output_path + "_CMYK.csv"), "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["pin"])
+            for pin in pin_sequence:
+                writer.writerow([pin])
 
     root.title("Edit Settings")
     pbar_label.config(text=f"Completed processing {os.path.basename(FILE_PATH)}")
@@ -477,9 +620,12 @@ set_lines_entry.grid(row=0, column=1, **padding_options)
 n_pins_label = tk.Label(root, text="N_PINS", bg=TK_BG, fg=TK_FG)
 n_pins_label.grid(row=0, column=2, **padding_options)
 
-n_pins_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
-n_pins_entry.insert(0, N_PINS)
-n_pins_entry.grid(row=0, column=3, **padding_options)
+n_pins_slider = tk.Scale(
+    root, from_=36, to=360, resolution=36, orient=tk.HORIZONTAL,
+    bg=TK_SEL_BG, fg=TK_FG, length=150,
+)
+n_pins_slider.set(N_PINS)
+n_pins_slider.grid(row=0, column=3, **padding_options)
 
 min_loop_label = tk.Label(root, text="MIN_LOOP", bg=TK_BG, fg=TK_FG)
 min_loop_label.grid(row=2, column=0, **padding_options)
@@ -520,6 +666,12 @@ line_weight_entry.insert(0, LINE_WEIGHT)
 line_weight_entry.grid(row=4, column=1, **padding_options)
 line_weight_entry.bind("<KeyRelease>", sync_line_weight_slider)
 
+auto_lw_label = tk.Label(root, text="AUTO_LW", bg=TK_BG, fg=TK_FG)
+auto_lw_label.grid(row=4, column=3, **padding_options)
+
+auto_lw_check = tk.Checkbutton(root, variable=auto_lw_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+auto_lw_check.grid(row=4, column=4, **padding_options)
+
 scale_label = tk.Label(root, text="SCALE", bg=TK_BG, fg=TK_FG)
 scale_label.grid(row=5, column=0, **padding_options)
 
@@ -551,42 +703,74 @@ save_mp4_label.grid(row=6, column=2, **padding_options)
 save_mp4_check = tk.Checkbutton(root, variable=mp4_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
 save_mp4_check.grid(row=6, column=3, **padding_options)
 
-save_json_label = tk.Label(root, text="SAVE_JSON", bg=TK_BG, fg=TK_FG)
-save_json_label.grid(row=7, column=2, **padding_options)
+save_csv_label = tk.Label(root, text="SAVE_CSV", bg=TK_BG, fg=TK_FG)
+save_csv_label.grid(row=7, column=2, **padding_options)
 
-save_json_check = tk.Checkbutton(root, variable=json_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
-save_json_check.grid(row=7, column=3, **padding_options)
+save_csv_check = tk.Checkbutton(root, variable=csv_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+save_csv_check.grid(row=7, column=3, **padding_options)
+
+dqn_mode_label = tk.Label(root, text="DQN_MODE", bg=TK_BG, fg=TK_FG)
+dqn_mode_label.grid(row=8, column=0, **padding_options)
+
+dqn_mode_check = tk.Checkbutton(root, variable=dqn_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+dqn_mode_check.grid(row=8, column=1, **padding_options)
+
+training_episodes_label = tk.Label(root, text="EPISODES", bg=TK_BG, fg=TK_FG)
+training_episodes_label.grid(row=8, column=2, **padding_options)
+
+training_episodes_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG, width=6)
+training_episodes_entry.insert(0, TRAINING_EPISODES)
+training_episodes_entry.grid(row=8, column=3, **padding_options)
+
+ssim_target_label = tk.Label(root, text="SSIM_TARGET", bg=TK_BG, fg=TK_FG)
+ssim_target_label.grid(row=9, column=0, **padding_options)
+
+ssim_target_slider = tk.Scale(root, from_=0.5, to=0.9, resolution=0.01, orient=tk.HORIZONTAL, bg=TK_SEL_BG, fg=TK_FG)
+ssim_target_slider.set(SSIM_TARGET)
+ssim_target_slider.grid(row=9, column=2)
+
+preprocess_label = tk.Label(root, text="PREPROCESS", bg=TK_BG, fg=TK_FG)
+preprocess_label.grid(row=10, column=0, **padding_options)
+
+preprocess_check = tk.Checkbutton(root, variable=preprocess_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+preprocess_check.grid(row=10, column=1, **padding_options)
+
+multi_scale_label = tk.Label(root, text="MULTI_SCALE", bg=TK_BG, fg=TK_FG)
+multi_scale_label.grid(row=10, column=2, **padding_options)
+
+multi_scale_check = tk.Checkbutton(root, variable=multi_scale_var, bg=TK_BG, fg=TK_FG, selectcolor=TK_SEL_BG)
+multi_scale_check.grid(row=10, column=3, **padding_options)
 
 file_path_label = tk.Label(root, text="FILE_PATH", bg=TK_BG, fg=TK_FG)
-file_path_label.grid(row=8, column=0, **padding_options)
+file_path_label.grid(row=11, column=0, **padding_options)
 
 file_path_entry = tk.Entry(root, bg=TK_SEL_BG, fg=TK_FG)
 file_path_entry.insert(0, FILE_PATH)
-file_path_entry.grid(row=8, column=1, columnspan=2, **padding_options)
+file_path_entry.grid(row=11, column=1, columnspan=2, **padding_options)
 
-tk.Button(root, text="Browse", command=select_file, bg=TK_SEL_BG, fg=TK_FG).grid(row=8, columnspan=99)
+tk.Button(root, text="Browse", command=select_file, bg=TK_SEL_BG, fg=TK_FG).grid(row=11, column=3, **padding_options)
 
-tk.Button(root, text="Run Code", command=run_code, bg=TK_SEL_BG, fg=TK_FG).grid(row=9, columnspan=99)
+tk.Button(root, text="Run Code", command=run_code, bg=TK_SEL_BG, fg=TK_FG).grid(row=12, columnspan=99)
 
 # display the image
 image_label = tk.Label(root)
-image_label.grid(row=11, columnspan=99, padx=10, pady=5)
+image_label.grid(row=13, columnspan=99, padx=10, pady=5)
 
 # Text widget to display terminal prints
 output_text = tk.Text(root, bg=TK_SEL_BG, fg=TK_FG, wrap="word", height=3, width=70)
-output_text.grid(row=12, columnspan=99, padx=10, pady=5)
+output_text.grid(row=14, columnspan=99, padx=10, pady=5)
 
 # progress bar
 pbar_label = tk.Label(root, bg=TK_BG, fg=TK_FG)
-pbar_label.grid(row=13, columnspan=99, padx=10, pady=5)
+pbar_label.grid(row=15, columnspan=99, padx=10, pady=5)
 progress_bar = ttk.Progressbar(root, mode="determinate", length="135m")
-progress_bar.grid(row=14, columnspan=99, padx=10, pady=5)
+progress_bar.grid(row=16, columnspan=99, padx=10, pady=5)
 eta_label = tk.Label(root, bg=TK_BG, fg=TK_FG)
-eta_label.grid(row=15, columnspan=99, padx=10, pady=5)
+eta_label.grid(row=17, columnspan=99, padx=10, pady=5)
 
 # tooltips
 set_lines_tip = ToolTip(set_lines_label, "Set the number of lines to draw. Set to 0 for automatic calculation.")
-n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use. must be a multiple of 36.")
+n_pins_tip = ToolTip(n_pins_label, "Set the total number of pins to use (multiples of 36).")
 min_loop_tip = ToolTip(min_loop_label, "Set the minimum loop count before returning to the same pin.")
 min_distance_tip = ToolTip(min_distance_label, "Set the minimum distance between two pins.")
 line_weight_tip = ToolTip(
@@ -598,7 +782,12 @@ scale_tip = ToolTip(
 grayscale_tip = ToolTip(grayscale_label, "Convert the image to grayscale, using only black lines for drawing.")
 invert_tip = ToolTip(invert_label, "Invert the image before processing. Can improve results for color images.")
 save_mp4_tip = ToolTip(save_mp4_label, "Save the creation process as an MP4 video file.")
-save_json_tip = ToolTip(save_json_label, "Save the pin sequence in a JSON file.")
-
+save_csv_tip = ToolTip(save_csv_label, "Save the pin sequence as a CSV file (one pin per row).")
+dqn_mode_tip = ToolTip(dqn_mode_label, "Use a Deep Q-Network to learn pin placement instead of the greedy algorithm.")
+training_episodes_tip = ToolTip(training_episodes_label, "Number of training episodes for the DQN (more = better quality, slower).")
+auto_lw_tip = ToolTip(auto_lw_label, "Automatically compute LINE_WEIGHT from image darkness. Overrides the slider value.")
+ssim_target_tip = ToolTip(ssim_target_label, "SSIM target for early stopping. Higher values result in more lines and higher quality.")
+preprocess_tip = ToolTip(preprocess_label, "Apply bilateral filtering and posterization to the image before processing.")
+multi_scale_tip = ToolTip(multi_scale_label, "Use a two-pass multiscale approach (coarse then fine) to save lines.")
 
 root.mainloop()

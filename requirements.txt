@@ -19,5 +19,7 @@ scipy==1.14.1
 setuptools==75.6.0
 svgwrite==1.4.3
 tifffile==2024.12.12
+torch>=2.0.0
+torch-directml>=0.2.0
 tqdm==4.67.1
 urllib3==2.3.0

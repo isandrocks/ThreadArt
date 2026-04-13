@@ -1,17 +1,63 @@
-from skimage.transform import radon
 import collections
 import math
 import os
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps, ImageDraw, ImageChops
 import numpy as np
 import time
 import tkinter as tk
 from tkinter import filedialog
 import random
-from scipy.ndimage import gaussian_filter
+from skimage.filters import sobel
+from skimage.metrics import structural_similarity as ssim
 
 
-def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img):
+def string_art_multiscale(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, edge_map=None, EDGE_BOOST=2.0, SSIM_TARGET=0.65, no_stagnation=False):
+    # Pass 1: Coarse
+    coarse_pins = N_PINS // 3
+    img_coarse = Image.fromarray(img).resize((128, 128), Image.Resampling.LANCZOS)
+    img_coarse_np = np.array(img_coarse)
+    
+    print("--- MULTISCALE: COARSE PASS ---")
+    seq_c, res_c, ln_c, diff_c, frames_c = string_art(
+        coarse_pins, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img_coarse_np,
+        edge_map=None, EDGE_BOOST=EDGE_BOOST, SSIM_TARGET=0.45, no_stagnation=no_stagnation
+    )
+    
+    # Scale up coarse result to original size
+    length = img.shape[0]
+    res_c_scaled = res_c.resize((length, length), Image.Resampling.LANCZOS)
+    res_c_np = np.array(res_c_scaled, dtype=np.float64)
+    
+    # Compute residual: what's left to draw
+    residual_error = np.clip(res_c_np - img.astype(np.float64), 0, 255)
+    target_img = np.clip(255 - residual_error, 0, 255).astype(np.uint8)
+    
+    print("--- MULTISCALE: FINE PASS ---")
+    seq_f, res_f, ln_f, diff_f, frames_f = string_art(
+        N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, target_img,
+        edge_map=edge_map, EDGE_BOOST=EDGE_BOOST, SSIM_TARGET=SSIM_TARGET, no_stagnation=no_stagnation
+    )
+    
+    # Combine results
+    ratio = N_PINS / coarse_pins
+    mapped_seq_c = [int(p * ratio) for p in seq_c]
+    final_seq = mapped_seq_c + seq_f
+    
+    scale_factor = length / 128.0
+    mapped_frames_c = []
+    for f in frames_c:
+        mapped_frames_c.append([
+            (f[0][0] * scale_factor, f[0][1] * scale_factor),
+            (f[1][0] * scale_factor, f[1][1] * scale_factor)
+        ])
+    final_frames = mapped_frames_c + frames_f
+    
+    res_c_full = res_c.resize((length * SCALE, length * SCALE), Image.Resampling.LANCZOS)
+    final_result = ImageChops.darker(res_c_full.convert("L"), res_f.convert("L"))
+    
+    return final_seq, final_result, ln_c + ln_f, diff_f, final_frames
+
+def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, img, edge_map=None, EDGE_BOOST=2.0, SSIM_TARGET=0.65, no_stagnation=False):
     assert img.shape[0] == img.shape[1]
     length = img.shape[0]
 
@@ -34,42 +80,19 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             )
         )
 
-    error = np.ones(img.shape) * 0xFF - img.copy()
+    error = np.ones(img.shape, dtype=np.float64) * 0xFF - img.astype(np.float64)
 
-    # Compute the Radon Transform of the image
-    theta = np.linspace(0.0, 180.0, max(img.shape), endpoint=False)
-    sinogram = radon(error, theta=theta, preserve_range=True)
-
-    # Normalize the sinogram for line weighting
-    sinogram /= sinogram.max()
-
-    # Precompute the scaling factor for distance
-    distance_scale_factor = sinogram.shape[0] / (length / 2)
-
-    # Helper function to map a line to Radon space
-    def line_to_radon_weight(pin1, pin2):
-        x0, y0 = pin1
-        x1, y1 = pin2
-        angle = (np.arctan2(y1 - y0, x1 - x0) * 180 / np.pi) % 180
-
-        angle_idx = np.argmin(np.abs(theta - angle))
-
-        mid_x = (x0 + x1) / 2 - center
-        mid_y = (y0 + y1) / 2 - center
-        distance = np.sqrt(mid_x**2 + mid_y**2)
-
-        distance_scaled = int((distance * distance_scale_factor) - 1)
-
-        return sinogram[distance_scaled, angle_idx]
+    if edge_map is None:
+        edge_map = sobel(img.astype(np.float64))
+        if edge_map.max() > 0:
+            edge_map /= edge_map.max()
 
     print("Precalculating all lines... ", end="", flush=True)
 
     # Precompute lines between pins
     line_cache_y = [None] * N_PINS * N_PINS
     line_cache_x = [None] * N_PINS * N_PINS
-    line_cache_weight = [1] * N_PINS * N_PINS
     line_cache_length = [0] * N_PINS * N_PINS
-    radon_weights = {}
 
     for a in range(N_PINS):
         for b in range(a + MIN_DISTANCE, N_PINS):
@@ -89,79 +112,55 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             line_cache_length[b * N_PINS + a] = d
             line_cache_length[a * N_PINS + b] = d
 
-            radon_weights[(a, b)] = line_to_radon_weight(pin_coords[a], pin_coords[b])
-
     print("done")
 
-    def find_opposite_pin(pin, N_PINS):
-        return (pin + N_PINS // 2) % N_PINS
-
     # Initialize variables for the calculation loop
-    img_result = np.ones(img.shape) * 0xFF
     result = Image.new("L", (img.shape[0] * SCALE, img.shape[1] * SCALE), 0xFF)
     draw = ImageDraw.Draw(result)
     line_mask = np.zeros(img.shape, np.float64)
     last_pins = collections.deque(maxlen=MIN_LOOP)
-    last_pincords = collections.deque(maxlen=(MIN_LOOP + 20))
-    previous_absdiff = float("inf")
-    increase_count = 0
     line_number = 0
     frames = []
     pin_sequence = []
     pin = 0
-    op_pin_count = 0
-    opc_error = []
-    last_p_count = 0
-    break_outer_loop = False  # Flag to break out of the outer loop
+    current_absdiff = 0.0
+    error_history = []  # rolling window for stagnation detection
 
     # Main calculation loop
     for l in range(MAX_LINES):
-        if break_outer_loop:
-            break  # Break out of the outer loop if the flag is set
         line_number += 1
 
-        # check for differance between the original image and the current image
+        # ---- Stagnation & SSIM check every 100 lines ----
         if l % 100 == 0:
-            opc_error.append(op_pin_count)
-            if sum(opc_error) >= (N_PINS / 2):
-                print("Breaking early due to cross center stagnation.")
+            from scipy.ndimage import gaussian_filter
+            img_result = result.resize((length, length), Image.Resampling.LANCZOS)
+            img_result_np = np.array(img_result, dtype=np.float64)
+
+            # Invert and blur to match string art perceptual structure to the 0.5-0.9 target scale
+            b_img = gaussian_filter(255.0 - img.astype(np.float64), sigma=2.0)
+            b_res = gaussian_filter(255.0 - img_result_np, sigma=2.0)
+
+            # SSIM target check
+            current_ssim = ssim(b_img, b_res, data_range=255.0)
+            print(f"{l} SSIM: {current_ssim:.4f}")
+
+            if current_ssim > SSIM_TARGET:
+                print("Breaking early: SSIM target reached.")
                 break
-            op_pin_count = 0
 
-            img_result = result.resize(img.shape, Image.Resampling.LANCZOS)
-            img_result = np.array(img_result)
+            error_history.append(current_ssim)
 
-            diff = img_result - img
-            mul = np.uint8(img_result < img) * 254 + 1
-            absdiff = diff * mul
-            current_absdiff = absdiff.sum() / (length * length)
-
-            max_possible_absdiff = 255
-            percentage_diff = (current_absdiff / max_possible_absdiff) * 100
-            print(f"{l} {percentage_diff:.2f}%")
-
-            # break out of the loop if the difference is less than 1e-3
-            if l > 1000:
-                improvement = previous_absdiff - current_absdiff
-                if improvement < 1e-3:
-                    increase_count += 1
-                else:
-                    increase_count = 0
-
-                if increase_count >= 3:
-                    print("Breaking early due to stagnation.")
+            if not no_stagnation and len(error_history) > 5:
+                # Compare current vs 500 lines ago (index -6)
+                improvement = current_ssim - error_history[-6]
+                if improvement < 0.005 and l > 500:
+                    print("Breaking early due to SSIM stagnation.")
                     break
-
-            previous_absdiff = current_absdiff
-
+        # ---- greedy pin selection: pick pin with highest error reduction ----
         max_score = -math.inf
         best_pin = -1
 
-        offsets = list(range(MIN_DISTANCE, N_PINS - MIN_DISTANCE))
-        random.shuffle(offsets)
-
-        for offset in offsets:
-
+        for offset in range(MIN_DISTANCE, N_PINS - MIN_DISTANCE):
             test_pin = (pin + offset) % N_PINS
 
             if test_pin in last_pins:
@@ -170,51 +169,26 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
             xs = line_cache_x[test_pin * N_PINS + pin]
             ys = line_cache_y[test_pin * N_PINS + pin]
 
-            line_err = np.sum(error[ys, xs]) * line_cache_weight[test_pin * N_PINS + pin]
+            if xs is None or ys is None:
+                continue
 
-            radon_weight = radon_weights.get((pin, test_pin))
-            if radon_weight is None:
-                radon_weight = line_to_radon_weight(pin_coords[pin], pin_coords[test_pin])
-                radon_weights[(pin, test_pin)] = radon_weight
+            line_err = float(np.sum(np.minimum(error[ys, xs], LINE_WEIGHT) * (1.0 + EDGE_BOOST * edge_map[ys, xs])))
 
-            total_score = line_err * radon_weight
-            op_pin = find_opposite_pin(pin, N_PINS)
-
-            if total_score > max_score:
-                last_pincords.append(
-                    [
-                        (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
-                        (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
-                    ]
-                )
-                current_pincords = [
-                    (pin_coords[pin][0] * SCALE, pin_coords[pin][1] * SCALE),
-                    (pin_coords[test_pin][0] * SCALE, pin_coords[test_pin][1] * SCALE),
-                ]
-                if current_pincords in last_pincords or test_pin == op_pin:
-                    if l > 2000:
-                        op_pin_count += 1
-                        last_p_count += 1
-                        if op_pin_count > (N_PINS / 8) or last_p_count > 4:
-                            print("Breaking early due to stagnation. Repeating pin cords")
-                            break_outer_loop = True  # Set the flag to break out of the outer loop
-                            break
-                else:
-                    last_p_count = 0
-
-                last_pincords.append(current_pincords)
-                max_score = total_score
+            if line_err > max_score:
+                max_score = line_err
                 best_pin = test_pin
+
+        if best_pin == -1:
+            break
 
         xs = line_cache_x[best_pin * N_PINS + pin]
         ys = line_cache_y[best_pin * N_PINS + pin]
-        weight = LINE_WEIGHT * line_cache_weight[best_pin * N_PINS + pin]
 
         line_mask.fill(0)
-        line_mask[ys, xs] = weight
+        line_mask[ys, xs] = LINE_WEIGHT
 
         error -= line_mask
-        error.clip(0, 255)
+        np.clip(error, 0, 255, out=error)
 
         # image data
         draw.line(
@@ -237,6 +211,12 @@ def string_art(N_PINS, MAX_LINES, MIN_LOOP, MIN_DISTANCE, LINE_WEIGHT, SCALE, im
         last_pins.append(best_pin)
         pin_sequence.append(best_pin)
         pin = best_pin
+
+    # Final absdiff computation
+    img_result = result.resize((length, length), Image.Resampling.LANCZOS)
+    img_result = np.array(img_result, dtype=np.float64)
+    diff = np.abs(img_result - img.astype(np.float64))
+    current_absdiff = diff.sum() / (length * length)
 
     return pin_sequence, result, line_number, current_absdiff, frames
 
