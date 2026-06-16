@@ -1,3 +1,107 @@
+"""
+═══════════════════════════════════════════════════════════════════════════════
+ CMYK / K-Only String Art Generator v4
+═══════════════════════════════════════════════════════════════════════════════
+
+ Deskripsi:
+   Aplikasi Streamlit untuk menghasilkan instruksi string art dari gambar.
+   Mendukung mode CMYK (4 warna benang) atau K-only (hitam saja).
+   Output berupa CSV berisi urutan pin & warna yang bisa dipakai robot
+   atau sebagai panduan manual.
+
+═══════════════════════════════════════════════════════════════════════════════
+ SETUP & INSTALASI
+═══════════════════════════════════════════════════════════════════════════════
+
+ 1. Python 3.9+ diperlukan
+
+ 2. Buat virtual environment (opsional tapi disarankan):
+      python -m venv venv
+      venv\\Scripts\\activate        (Windows)
+      source venv/bin/activate      (Linux/Mac)
+
+ 3. Install dependencies:
+      pip install -r requirements.txt
+
+    Atau manual:
+      pip install streamlit numpy pandas pillow scikit-image
+
+ 4. Jalankan:
+      streamlit run color-ai.py
+
+    Browser akan terbuka otomatis di http://localhost:8501
+
+═══════════════════════════════════════════════════════════════════════════════
+ CARA PAKAI
+═══════════════════════════════════════════════════════════════════════════════
+
+ 1. Upload gambar (PNG/JPG) di sidebar kiri
+ 2. Sistem otomatis menganalisis gambar dan memberikan:
+    - Preview dekomposisi CMYK
+    - Recommended settings (mode, pins, lines, dll)
+ 3. Pilih mode warna:
+    - CMYK = 4 warna benang (Cyan, Magenta, Yellow, Black)
+    - K Only = hitam saja (untuk portrait/grayscale)
+ 4. Gunakan suggested settings (checkbox ON) atau edit manual (OFF)
+ 5. Klik "Generate" — progress bar & preview realtime
+ 6. Setelah selesai:
+    - Lihat simulasi visual hasil
+    - Cek tabel distribusi warna & estimasi kebutuhan benang
+    - Download CSV instruksi
+
+═══════════════════════════════════════════════════════════════════════════════
+ PARAMETER GUIDE
+═══════════════════════════════════════════════════════════════════════════════
+
+ BASIC:
+   - Jumlah paku        : Pin di keliling frame. 240-360 untuk kebanyakan gambar.
+   - Total tarikan      : Jumlah garis. 4000-6000 biasa. Gambar gelap butuh lebih.
+   - Resolusi kerja     : Resolusi kalkulasi internal. 400-550 biasanya optimal.
+   - Edge boost         : Prioritas kontur/tepi. 1.5-2.5 range normal.
+   - Highlight protect  : Pixel target < ini dianggap kosong. Naikkan untuk
+                          protect area terang (kulit, putih). Range 12-30.
+   - Diameter frame     : Ukuran fisik (mm) untuk kalkulasi panjang benang.
+   - Ketebalan benang   : Untuk kalkulasi line strength. Default 0.2mm.
+
+ ADVANCED (Anti-Moiré):
+   - Candidate stride   : Lompatan saat scan pin. 1=presisi, 3+=diverse.
+                          K-only disarankan 3+.
+   - Recent pins buffer : Pin terakhir yg di-blacklist. 15=CMYK, 40-60=K-only.
+                          Kecil → pola repetitif. Besar → lebih diverse.
+   - Min line length    : Tolak garis < X pixel. Besar = hilangkan sisik/moiré.
+                          Default: resolution/8 (CMYK), resolution/5 (K-only).
+
+═══════════════════════════════════════════════════════════════════════════════
+ TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+ - Hasil ada "sisik"/moiré   → Naikkan min line length & recent buffer
+ - Area terang kena garis    → Naikkan highlight protection (25-35)
+ - Terlalu gelap/over-draw   → Kurangi total tarikan atau naikkan highlight
+ - Proses freeze di awal     → Normal, precalculate garis butuh 10-30 detik
+ - Hasil tipis/jarang        → Naikkan total tarikan, turunkan highlight
+ - Garis kasar               → Naikkan jumlah paku atau resolusi
+
+═══════════════════════════════════════════════════════════════════════════════
+ OUTPUT CSV FORMAT
+═══════════════════════════════════════════════════════════════════════════════
+
+ Kolom CSV:
+   STEP      : Nomor urut garis (1-based)
+   COLOR     : Warna benang (C/M/Y/K)
+   START_PIN : Nomor pin awal (0-based)
+   END_PIN   : Nomor pin akhir (0-based)
+   START_ROW : Koordinat baris pin awal (pixel)
+   START_COL : Koordinat kolom pin awal (pixel)
+   END_ROW   : Koordinat baris pin akhir (pixel)
+   END_COL   : Koordinat kolom pin akhir (pixel)
+   LENGTH_PX : Panjang garis dalam pixel
+   LENGTH_MM : Panjang garis dalam mm (berdasarkan diameter frame)
+   SCORE     : Skor kualitas garis (semakin tinggi = semakin efektif)
+
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
 import math
 from collections import deque
 
@@ -620,6 +724,51 @@ def generate_string_art(
 st.set_page_config(layout="wide", page_title="String Art Generator v4")
 st.title("🧵 String Art Generator v4")
 st.caption("CMYK / K-only mode, image analysis & auto-suggestion, weighted round-robin.")
+
+with st.expander("📖 Cara Pakai & Tips", expanded=False):
+    st.markdown("""
+**Langkah Dasar:**
+1. Upload gambar (PNG/JPG) — otomatis di-crop square & dianalisis
+2. Lihat **Recommended Settings** di panel kanan — sistem beri suggestion berdasarkan karakteristik gambar
+3. Pilih mode warna: **CMYK** (4 warna benang) atau **K Only** (hitam saja)
+4. Checkbox "Gunakan suggested settings" ON = pakai suggestion langsung, OFF = edit manual
+5. Klik **🚀 Generate** — tunggu progress selesai
+6. Download CSV sebagai instruksi robot/manual
+
+---
+
+**Penjelasan Parameter:**
+
+| Parameter | Fungsi |
+|-----------|--------|
+| **Jumlah paku** | Semakin banyak = detail lebih halus, tapi proses lebih lama |
+| **Total tarikan benang** | Jumlah garis total. Gambar gelap butuh lebih banyak |
+| **Resolusi kerja** | Resolusi internal kalkulasi. 400-550 biasanya cukup |
+| **Edge boost** | Prioritas area tepi/kontur. Tinggi = garis lebih fokus di edge |
+| **Highlight protection** | Pixel target di bawah angka ini dianggap "kosong". Naikkan jika area terang (kulit/putih) masih kena garis |
+| **Diameter frame** | Ukuran fisik frame — untuk kalkulasi kebutuhan benang (meter) |
+
+---
+
+**Advanced (Anti-Moiré):**
+
+| Parameter | Fungsi | Gejala kalau salah |
+|-----------|--------|--------------------|
+| **Candidate stride** | Lompatan saat scan pin kandidat | Kecil = presisi tapi bisa moiré. Besar = diverse |
+| **Recent pins buffer** | Jumlah pin terakhir yang di-blacklist | Kecil = pin dipakai ulang → pola repetitif/sisik |
+| **Min line length** | Tolak garis lebih pendek dari ini | Kecil = banyak garis pendek → efek sisik/moiré |
+
+---
+
+**Troubleshooting:**
+
+- **Hasil ada "sisik"/moiré spiral** → Naikkan min line length & recent buffer
+- **Wajah terlalu gelap / area terang kena garis** → Naikkan highlight protection (20-30)
+- **Warna tidak merata** → Pastikan mode CMYK, cek distribusi warna di analisis
+- **Proses freeze di awal** → Normal, tunggu "Menghitung garis..." selesai (bisa 10-30 detik)
+- **Hasil terlalu jarang/tipis** → Naikkan total tarikan benang atau turunkan highlight protection
+- **Garis terlalu "kasar"** → Naikkan jumlah paku atau resolusi
+""")
 
 left_col, right_col = st.columns([1, 2])
 
