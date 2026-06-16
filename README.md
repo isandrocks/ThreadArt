@@ -1,4 +1,4 @@
-# 🧵 String Art Generator V4
+# 🧵 String Art Generator V4 (diameter Option)
 
 Aplikasi Python untuk menghasilkan instruksi string art dari gambar. Mendukung mode **CMYK** (4 warna benang) dan **K-Only** (hitam saja), dengan image analysis otomatis dan parameter suggestion.
 
