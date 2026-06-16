@@ -60,7 +60,8 @@
    - Edge boost         : Prioritas kontur/tepi. 1.5-2.5 range normal.
    - Highlight protect  : Pixel target < ini dianggap kosong. Naikkan untuk
                           protect area terang (kulit, putih). Range 12-30.
-   - Diameter frame     : Ukuran fisik (mm) untuk kalkulasi panjang benang.
+   - Diameter frame     : Pilih preset ukuran: 20, 30, 40, 50, 60 cm.
+                          Mempengaruhi suggestion (pins, lines) dan kalkulasi benang.
    - Ketebalan benang   : Untuk kalkulasi line strength. Default 0.2mm.
 
  ADVANCED (Anti-Moiré):
@@ -166,7 +167,7 @@ def prepare_square_image(uploaded_file, resolution):
 # ═══════════════════════════ IMAGE ANALYSIS ═══════════════════════════
 
 
-def analyze_image(img_arr, circle_mask):
+def analyze_image(img_arr, circle_mask, frame_diameter_cm=50):
     """Analisis gambar dan berikan suggestion parameter.
     Return dict berisi analisis & recommended settings.
     """
@@ -228,27 +229,35 @@ def analyze_image(img_arr, circle_mask):
         suggested_mode = "CMYK"
         mode_reason = f"Gambar punya kontribusi warna {color_energy_ratio:.0%} dari total."
 
-    # Pin count suggestion
+    # Pin count suggestion — juga tergantung ukuran frame
+    # Frame besar bisa tampung lebih banyak pin
+    size_factor = frame_diameter_cm / 50.0  # normalize ke 50cm
     if edge_density > 0.08:
-        suggested_pins = 360
+        base_pins = 360
         pin_reason = "Banyak detail halus, butuh pin lebih banyak."
     elif edge_density > 0.04:
-        suggested_pins = 300
+        base_pins = 300
         pin_reason = "Detail sedang."
     else:
-        suggested_pins = 240
+        base_pins = 240
         pin_reason = "Gambar relatif smooth/simple."
+    # Scale pins berdasarkan ukuran frame
+    suggested_pins = int(base_pins * max(0.7, min(1.3, size_factor)))
+    suggested_pins = max(120, min(480, suggested_pins))
+    pin_reason += f" (scaled untuk frame {frame_diameter_cm}cm)"
 
-    # Line count suggestion
+    # Line count suggestion — frame besar butuh lebih banyak garis
     if dark_ratio > 0.5:
-        suggested_lines = 6000
+        base_lines = 6000
         line_reason = "Banyak area gelap yang perlu di-cover."
     elif dark_ratio > 0.3:
-        suggested_lines = 5000
+        base_lines = 5000
         line_reason = "Kegelapan sedang."
     else:
-        suggested_lines = 4000
+        base_lines = 4000
         line_reason = "Gambar cukup terang, tidak perlu terlalu banyak garis."
+    suggested_lines = int(base_lines * max(0.7, min(1.5, size_factor)))
+    line_reason += f" (scaled untuk {frame_diameter_cm}cm)"
 
     # Highlight protection
     if light_ratio > 0.3:
@@ -337,6 +346,7 @@ def analyze_image(img_arr, circle_mask):
         "recent_reason": recent_reason,
         "suggested_min_line": suggested_min_line,
         "minline_reason": minline_reason,
+        "frame_diameter_cm": frame_diameter_cm,
     }
 
 
@@ -728,8 +738,8 @@ st.caption("CMYK / K-only mode, image analysis & auto-suggestion, weighted round
 with st.expander("📖 Cara Pakai & Tips", expanded=False):
     st.markdown("""
 **Langkah Dasar:**
-1. Upload gambar (PNG/JPG) — otomatis di-crop square & dianalisis
-2. Lihat **Recommended Settings** di panel kanan — sistem beri suggestion berdasarkan karakteristik gambar
+1. Upload gambar (PNG/JPG) & pilih **diameter frame** (20-60cm)
+2. Sistem otomatis menganalisis gambar dan memberi **Recommended Settings** sesuai gambar + ukuran frame
 3. Pilih mode warna: **CMYK** (4 warna benang) atau **K Only** (hitam saja)
 4. Checkbox "Gunakan suggested settings" ON = pakai suggestion langsung, OFF = edit manual
 5. Klik **🚀 Generate** — tunggu progress selesai
@@ -746,7 +756,7 @@ with st.expander("📖 Cara Pakai & Tips", expanded=False):
 | **Resolusi kerja** | Resolusi internal kalkulasi. 400-550 biasanya cukup |
 | **Edge boost** | Prioritas area tepi/kontur. Tinggi = garis lebih fokus di edge |
 | **Highlight protection** | Pixel target di bawah angka ini dianggap "kosong". Naikkan jika area terang (kulit/putih) masih kena garis |
-| **Diameter frame** | Ukuran fisik frame — untuk kalkulasi kebutuhan benang (meter) |
+| **Diameter frame** | Pilih ukuran frame (20-60cm). Mempengaruhi suggestion & kalkulasi benang |
 
 ---
 
@@ -772,9 +782,20 @@ with st.expander("📖 Cara Pakai & Tips", expanded=False):
 
 left_col, right_col = st.columns([1, 2])
 
+# Preset diameter options (cm)
+FRAME_SIZES_CM = [20, 30, 40, 50, 60]
+
 with left_col:
-    st.subheader("📷 Upload")
+    st.subheader("📷 Upload & Frame")
     uploaded_file = st.file_uploader("Upload gambar", type=["png", "jpg", "jpeg"])
+    frame_diameter_cm = st.selectbox(
+        "Diameter frame (cm)",
+        options=FRAME_SIZES_CM,
+        index=3,  # default 50cm
+        format_func=lambda x: f"{x} cm ({x*10} mm)",
+        help="Pilih ukuran fisik frame. Mempengaruhi suggestion parameter.",
+    )
+    frame_diameter_mm = frame_diameter_cm * 10
 
 # ─── Image Analysis & Suggestions ───
 analysis = None
@@ -783,7 +804,7 @@ if uploaded_file is not None:
     analysis_img = prepare_square_image(uploaded_file, 256)
     analysis_arr = np.array(analysis_img)
     analysis_mask = create_circle_mask(256)
-    analysis = analyze_image(analysis_arr, analysis_mask)
+    analysis = analyze_image(analysis_arr, analysis_mask, frame_diameter_cm)
 
     with right_col:
         st.subheader("🔍 Analisis Gambar")
@@ -802,7 +823,7 @@ if uploaded_file is not None:
 
         # Suggestion box
         st.markdown("---")
-        st.subheader("💡 Recommended Settings")
+        st.subheader(f"💡 Recommended Settings (frame {frame_diameter_cm}cm)")
         sug_col1, sug_col2 = st.columns(2)
         with sug_col1:
             st.metric("Mode", analysis["suggested_mode"])
@@ -914,9 +935,7 @@ with left_col:
         thread_thickness = st.number_input(
             "Ketebalan benang (mm)", min_value=0.1, max_value=2.0, value=0.2, step=0.1
         )
-        frame_diameter_mm = st.number_input(
-            "Diameter frame (mm)", min_value=100, max_value=2000, value=600, step=10,
-        )
+        st.text(f"Frame: {frame_diameter_cm}cm ({frame_diameter_mm}mm)")
         use_auto_gap = st.checkbox("Auto min pin gap", value=True)
         if use_auto_gap:
             is_k_only = (color_mode == "K Only")
